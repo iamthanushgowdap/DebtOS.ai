@@ -2,6 +2,7 @@ package com.example.debtosmobile.ui.main
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -16,7 +17,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -64,26 +64,37 @@ fun ChatScreen(repo: DataRepository) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFF0F172A))
+            .background(Color(0xFFF8FAFC))
     ) {
         // Chat header
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(Brush.horizontalGradient(listOf(Color(0xFF1E293B), Color(0xFF0F172A))))
-                .padding(16.dp)
+        Surface(
+            color = Color.White,
+            tonalElevation = 2.dp,
+            shadowElevation = 1.dp
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    Icons.Default.SmartToy,
-                    contentDescription = null,
-                    tint = Color(0xFFF59E0B),
-                    modifier = Modifier.size(28.dp)
-                )
-                Spacer(Modifier.width(8.dp))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .background(Color(0xFFEFF6FF), shape = RoundedCornerShape(20.dp)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.Default.SmartToy,
+                        contentDescription = null,
+                        tint = Color(0xFF2563EB),
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
+                Spacer(Modifier.width(12.dp))
                 Column {
-                    Text("DebtOS Advisor", color = Color(0xFFF8FAFC), fontWeight = FontWeight.Black, fontSize = 18.sp)
-                    Text("Powered by Gemini AI", color = Color(0xFF94A3B8), fontSize = 11.sp)
+                    Text("DebtOS Advisor", color = Color(0xFF09090B), fontWeight = FontWeight.Black, fontSize = 16.sp)
+                    Text("Powered by Gemini AI", color = Color(0xFF475569), fontSize = 11.sp, fontWeight = FontWeight.Medium)
                 }
             }
         }
@@ -113,11 +124,12 @@ fun ChatScreen(repo: DataRepository) {
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Start) {
                             Box(
                                 Modifier
-                                    .clip(RoundedCornerShape(topStart = 4.dp, topEnd = 18.dp, bottomEnd = 18.dp, bottomStart = 18.dp))
-                                    .background(Color(0xFF1E293B).copy(alpha = 0.6f))
+                                    .clip(RoundedCornerShape(topStart = 4.dp, topEnd = 16.dp, bottomEnd = 16.dp, bottomStart = 16.dp))
+                                    .background(Color.White)
+                                    .border(BorderStroke(1.dp, Color(0xFFE2E8F0)), RoundedCornerShape(topStart = 4.dp, topEnd = 16.dp, bottomEnd = 16.dp, bottomStart = 16.dp))
                                     .padding(14.dp)
                             ) {
-                                CircularProgressIndicator(color = Color(0xFF8B5CF6), modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                                CircularProgressIndicator(color = Color(0xFF2563EB), modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
                             }
                         }
                     }
@@ -126,38 +138,43 @@ fun ChatScreen(repo: DataRepository) {
         }
 
         // Input bar
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(Color(0xFF1E293B))
-                .padding(horizontal = 12.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        Surface(
+            color = Color.White,
+            tonalElevation = 8.dp,
+            border = BorderStroke(1.dp, Color(0xFFE2E8F0))
         ) {
-            OutlinedTextField(
-                value = input,
-                onValueChange = { input = it },
-                modifier = Modifier.weight(1f),
-                placeholder = { Text("Ask your advisor…", color = Color(0xFF64748B), fontSize = 13.sp) },
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = Color(0xFFF59E0B),
-                    unfocusedBorderColor = Color.White.copy(0.1f),
-                    focusedTextColor = Color(0xFFF8FAFC),
-                    unfocusedTextColor = Color(0xFFF8FAFC),
-                    focusedContainerColor = Color(0xFF0F172A).copy(0.5f),
-                    unfocusedContainerColor = Color(0xFF0F172A).copy(0.5f)
-                ),
-                shape = RoundedCornerShape(20.dp),
-                maxLines = 3
-            )
-            IconButton(
-                onClick = { sendMessage() },
+            Row(
                 modifier = Modifier
-                    .size(48.dp)
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(Color(0xFF8B5CF6))
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Send", tint = Color.White)
+                OutlinedTextField(
+                    value = input,
+                    onValueChange = { input = it },
+                    modifier = Modifier.weight(1f),
+                    placeholder = { Text("Ask your advisor…", color = Color(0xFF475569), fontSize = 13.sp) },
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Color(0xFF2563EB),
+                        unfocusedBorderColor = Color(0xFFE2E8F0),
+                        focusedTextColor = Color(0xFF09090B),
+                        unfocusedTextColor = Color(0xFF09090B),
+                        focusedContainerColor = Color(0xFFF8FAFC),
+                        unfocusedContainerColor = Color(0xFFF8FAFC)
+                    ),
+                    shape = RoundedCornerShape(20.dp),
+                    maxLines = 3
+                )
+                IconButton(
+                    onClick = { sendMessage() },
+                    modifier = Modifier
+                        .size(48.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(Color(0xFF2563EB))
+                ) {
+                    Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Send", tint = Color.White)
+                }
             }
         }
     }
@@ -167,21 +184,23 @@ fun ChatScreen(repo: DataRepository) {
 private fun ChatBubble(msg: ChatMessage) {
     val arrangement = if (msg.isUser) Arrangement.End else Arrangement.Start
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = arrangement) {
-        val bubbleColor = if (msg.isUser) Color(0xFF8B5CF6) else Color(0xFF1E293B).copy(alpha = 0.5f)
-        val border = if (msg.isUser) null else BorderStroke(1.dp, Color.White.copy(alpha = 0.08f))
+        val bubbleColor = if (msg.isUser) Color(0xFF2563EB) else Color.White
+        val border = if (msg.isUser) null else BorderStroke(1.dp, Color(0xFFE2E8F0))
+        val textColor = if (msg.isUser) Color.White else Color(0xFF09090B)
 
         Surface(
             shape = RoundedCornerShape(
-                topStart = if (msg.isUser) 18.dp else 4.dp,
-                topEnd = if (msg.isUser) 4.dp else 18.dp,
-                bottomEnd = 18.dp, bottomStart = 18.dp
+                topStart = if (msg.isUser) 16.dp else 4.dp,
+                topEnd = if (msg.isUser) 4.dp else 16.dp,
+                bottomEnd = 16.dp, bottomStart = 16.dp
             ),
             color = bubbleColor,
             border = border,
+            shadowElevation = 1.dp,
             modifier = Modifier.widthIn(max = 280.dp)
         ) {
             Box(Modifier.padding(12.dp)) {
-                Text(msg.text, color = Color(0xFFF8FAFC), fontSize = 13.sp, lineHeight = 19.sp)
+                Text(msg.text, color = textColor, fontSize = 13.sp, lineHeight = 19.sp)
             }
         }
     }

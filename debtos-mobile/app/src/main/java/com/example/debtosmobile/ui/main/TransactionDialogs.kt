@@ -80,7 +80,7 @@ fun TransactionBottomSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = Color(0xFF1E293B),
+        containerColor = Color.White,
         shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
     ) {
         Column(
@@ -106,7 +106,7 @@ fun TransactionBottomSheet(
                     Spacer(Modifier.width(8.dp))
                     Text(
                         if (isIncome) "Log Income" else "Log Expense",
-                        fontSize = 20.sp, fontWeight = FontWeight.Black, color = Color(0xFFF8FAFC)
+                        fontSize = 20.sp, fontWeight = FontWeight.Black, color = Color(0xFF09090B)
                     )
                 }
                 // Voice button
@@ -119,11 +119,11 @@ fun TransactionBottomSheet(
                         }
                         speechLauncher.launch(intent)
                     },
-                    colors = IconButtonDefaults.iconButtonColors(containerColor = Color(0xFF0F172A))
+                    colors = IconButtonDefaults.iconButtonColors(containerColor = Color(0xFFF1F5F9))
                 ) {
                     Icon(
                         Icons.Default.Mic, contentDescription = "Voice Input",
-                        tint = Color(0xFFF59E0B), modifier = Modifier.size(24.dp)
+                        tint = Color(0xFF2563EB), modifier = Modifier.size(24.dp)
                     )
                 }
             }
@@ -133,10 +133,10 @@ fun TransactionBottomSheet(
                 value = amount,
                 onValueChange = { amount = it.filter { c -> c.isDigit() } },
                 modifier = Modifier.fillMaxWidth(),
-                label = { Text("Amount (₹)", color = Color(0xFF94A3B8)) },
-                leadingIcon = { Text("₹", color = Color(0xFFF59E0B), fontWeight = FontWeight.Bold, fontSize = 16.sp, modifier = Modifier.padding(start = 16.dp)) },
+                label = { Text("Amount (₹)", color = Color(0xFF475569)) },
+                leadingIcon = { Text("₹", color = Color(0xFF2563EB), fontWeight = FontWeight.Bold, fontSize = 16.sp, modifier = Modifier.padding(start = 16.dp)) },
                 colors = transactionFieldColors(),
-                shape = RoundedCornerShape(14.dp),
+                shape = RoundedCornerShape(12.dp),
                 singleLine = true
             )
 
@@ -145,14 +145,14 @@ fun TransactionBottomSheet(
                 value = description,
                 onValueChange = { description = it },
                 modifier = Modifier.fillMaxWidth(),
-                label = { Text(if (isIncome) "Notes (optional)" else "What did you spend on?", color = Color(0xFF94A3B8)) },
+                label = { Text(if (isIncome) "Notes (optional)" else "What did you spend on?", color = Color(0xFF475569)) },
                 colors = transactionFieldColors(),
-                shape = RoundedCornerShape(14.dp),
+                shape = RoundedCornerShape(12.dp),
                 singleLine = true
             )
 
             // Category pills
-            Text(if (isIncome) "Source" else "Category", color = Color(0xFF94A3B8), fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+            Text(if (isIncome) "Source" else "Category", color = Color(0xFF475569), fontSize = 12.sp, fontWeight = FontWeight.Bold)
             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 val options = if (isIncome) INCOME_SOURCES else EXPENSE_CATEGORIES
                 items(options) { cat ->
@@ -160,42 +160,43 @@ fun TransactionBottomSheet(
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(20.dp))
-                            .background(if (selected) Color(0xFF8B5CF6) else Color(0xFF0F172A))
+                            .background(if (selected) Color(0xFF2563EB) else Color(0xFFF1F5F9))
                             .clickable { selectedCategory = cat }
                             .padding(horizontal = 14.dp, vertical = 8.dp)
                     ) {
-                        Text(cat, color = Color.White, fontSize = 12.sp, fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal)
+                        Text(cat, color = if (selected) Color.White else Color(0xFF475569), fontSize = 12.sp, fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal)
                     }
                 }
             }
 
             // Credit card picker (only for expenses)
             if (!isIncome && cards.isNotEmpty()) {
-                Text("Paid Via", color = Color(0xFF94A3B8), fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                Text("Paid Via", color = Color(0xFF475569), fontSize = 12.sp, fontWeight = FontWeight.Bold)
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     item {
                         val selected = selectedCardId == null
                         Box(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(20.dp))
-                                .background(if (selected) Color(0xFF10B981) else Color(0xFF0F172A))
+                                .background(if (selected) Color(0xFF10B981) else Color(0xFFF1F5F9))
                                 .clickable { selectedCardId = null }
                                 .padding(horizontal = 14.dp, vertical = 8.dp)
-                        ) { Text("Cash/Wallet", color = Color.White, fontSize = 12.sp, fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal) }
+                        ) { Text("Cash/Wallet", color = if (selected) Color.White else Color(0xFF475569), fontSize = 12.sp, fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal) }
                     }
                     items(cards) { card ->
                         val selected = selectedCardId == card.id
                         Box(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(20.dp))
-                                .background(if (selected) Color(0xFF8B5CF6) else Color(0xFF0F172A))
+                                .background(if (selected) Color(0xFF2563EB) else Color(0xFFF1F5F9))
                                 .clickable { selectedCardId = card.id }
                                 .padding(horizontal = 14.dp, vertical = 8.dp)
-                        ) { Text(card.cardName, color = Color.White, fontSize = 12.sp, fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal) }
+                        ) { Text(card.cardName, color = if (selected) Color.White else Color(0xFF475569), fontSize = 12.sp, fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal) }
                     }
                 }
             }
 
+            // Error display
             AnimatedVisibility(visible = error != null) {
                 Text(error ?: "", color = Color(0xFFEF4444), fontSize = 12.sp)
             }
@@ -238,9 +239,9 @@ fun TransactionBottomSheet(
                     .fillMaxWidth()
                     .height(52.dp),
                 enabled = !loading,
-                shape = RoundedCornerShape(14.dp),
+                shape = RoundedCornerShape(12.dp),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = if (isIncome) Color(0xFF10B981) else Color(0xFF8B5CF6)
+                    containerColor = if (isIncome) Color(0xFF10B981) else Color(0xFF2563EB)
                 )
             ) {
                 if (loading) CircularProgressIndicator(color = Color.White, strokeWidth = 2.dp, modifier = Modifier.size(20.dp))
@@ -252,10 +253,10 @@ fun TransactionBottomSheet(
 
 @Composable
 private fun transactionFieldColors() = OutlinedTextFieldDefaults.colors(
-    focusedBorderColor = Color(0xFFF59E0B),
-    unfocusedBorderColor = Color.White.copy(0.1f),
-    focusedTextColor = Color(0xFFF8FAFC),
-    unfocusedTextColor = Color(0xFFF8FAFC),
-    focusedContainerColor = Color(0xFF0F172A).copy(alpha = 0.5f),
-    unfocusedContainerColor = Color(0xFF0F172A).copy(alpha = 0.5f)
+    focusedBorderColor = Color(0xFF2563EB),
+    unfocusedBorderColor = Color(0xFFE2E8F0),
+    focusedTextColor = Color(0xFF09090B),
+    unfocusedTextColor = Color(0xFF09090B),
+    focusedContainerColor = Color.White,
+    unfocusedContainerColor = Color.White
 )

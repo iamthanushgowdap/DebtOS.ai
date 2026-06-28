@@ -7,6 +7,7 @@ import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -25,29 +26,44 @@ fun MainScreen(repo: DataRepository, onLogout: () -> Unit) {
     var activeTab by remember { mutableStateOf(Tab.Dashboard) }
 
     Scaffold(
-        containerColor = Color(0xFF0F172A),
+        containerColor = Color(0xFFF8FAFC),
         topBar = {
-            // Minimal top bar with logout
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .statusBarsPadding()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.SpaceBetween
+            Surface(
+                color = Color.White,
+                tonalElevation = 2.dp,
+                shadowElevation = 1.dp
             ) {
-                Text(
-                    "DebtOS",
-                    color = Color(0xFFF8FAFC),
-                    fontWeight = FontWeight.Black,
-                    fontSize = 18.sp
-                )
-                IconButton(onClick = onLogout) {
-                    Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = "Logout", tint = Color(0xFF94A3B8))
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .statusBarsPadding()
+                        .padding(horizontal = 20.dp, vertical = 12.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        "DebtOS",
+                        color = Color(0xFF09090B),
+                        fontWeight = FontWeight.Black,
+                        fontSize = 20.sp,
+                        letterSpacing = (-0.5).sp
+                    )
+                    IconButton(
+                        onClick = onLogout,
+                        colors = IconButtonDefaults.iconButtonColors(containerColor = Color(0xFFF1F5F9))
+                    ) {
+                        Icon(
+                            Icons.AutoMirrored.Filled.Logout, 
+                            contentDescription = "Logout", 
+                            tint = Color(0xFF475569),
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
                 }
             }
         },
         bottomBar = {
-            NavigationBar(containerColor = Color(0xFF1E293B)) {
+            NavigationBar(containerColor = Color.White, tonalElevation = 8.dp) {
                 Tab.values().forEach { tab ->
                     NavigationBarItem(
                         selected = activeTab == tab,
@@ -56,19 +72,19 @@ fun MainScreen(repo: DataRepository, onLogout: () -> Unit) {
                             Icon(
                                 tab.icon,
                                 contentDescription = tab.label,
-                                tint = if (activeTab == tab) Color(0xFF8B5CF6) else Color(0xFF64748B)
+                                tint = if (activeTab == tab) Color(0xFF2563EB) else Color(0xFF64748B)
                             )
                         },
                         label = {
                             Text(
                                 tab.label,
                                 fontSize = 10.sp,
-                                color = if (activeTab == tab) Color(0xFF8B5CF6) else Color(0xFF64748B),
+                                color = if (activeTab == tab) Color(0xFF2563EB) else Color(0xFF64748B),
                                 fontWeight = if (activeTab == tab) FontWeight.Bold else FontWeight.Normal
                             )
                         },
                         colors = NavigationBarItemDefaults.colors(
-                            indicatorColor = Color(0xFF8B5CF6).copy(alpha = 0.15f)
+                            indicatorColor = Color(0xFF2563EB).copy(alpha = 0.1f)
                         )
                     )
                 }
