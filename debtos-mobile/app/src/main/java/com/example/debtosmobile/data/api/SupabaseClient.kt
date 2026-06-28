@@ -11,7 +11,7 @@ import java.io.IOException
 private const val SUPABASE_URL = "https://vmgfolcjthkxnisvadzu.supabase.co"
 private const val SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZtZ2ZvbGNqdGhreG5pc3ZhZHp1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA1MDM1MjYsImV4cCI6MjA5NjA3OTUyNn0.hCDmE9rTvcEw2l54cIzNa-pivcD9Qp-ISUEtc7o0Tc4"
 
-private var resolvedBaseUrl = "http://10.0.2.2:8000"
+private var resolvedBaseUrl = "https://debt-os-ai.vercel.app"
 
 class SupabaseClient {
     private val http = OkHttpClient()
@@ -143,22 +143,24 @@ class SupabaseClient {
             val raw = resp.body?.string() ?: return AdvisorResponse(error = "No response")
             json.decodeFromString<AdvisorResponse>(raw)
         } catch (e: Exception) {
-            // Try fallback URL (localhost <-> 10.0.2.2)
-            val fallbackBase = if (currentBase == "http://10.0.2.2:8000") "http://localhost:8000" else "http://10.0.2.2:8000"
-            val fallbackReq = Request.Builder()
-                .url("$fallbackBase/api/ai/advisor")
-                .addHeader("Authorization", "Bearer $token")
-                .addHeader("Content-Type", "application/json")
-                .post(body)
-                .build()
-            try {
-                val resp = http.newCall(fallbackReq).execute()
-                val raw = resp.body?.string() ?: return AdvisorResponse(error = "No response")
-                resolvedBaseUrl = fallbackBase // Save the successful url
-                json.decodeFromString<AdvisorResponse>(raw)
-            } catch (e2: Exception) {
-                AdvisorResponse(error = "Connection failed. Please make sure the Next.js server is running on port 8000 on your computer.")
+            // Try fallback URLs (Vercel -> Emulator Localhost -> Native Localhost)
+            val fallbacks = listOf("https://debt-os-ai.vercel.app", "http://10.0.2.2:8000", "http://localhost:8000")
+            for (fallbackBase in fallbacks) {
+                if (fallbackBase == currentBase) continue
+                val fallbackReq = Request.Builder()
+                    .url("$fallbackBase/api/ai/advisor")
+                    .addHeader("Authorization", "Bearer $token")
+                    .addHeader("Content-Type", "application/json")
+                    .post(body)
+                    .build()
+                try {
+                    val resp = http.newCall(fallbackReq).execute()
+                    val raw = resp.body?.string() ?: continue
+                    resolvedBaseUrl = fallbackBase // Save the successful url
+                    return json.decodeFromString<AdvisorResponse>(raw)
+                } catch (ignored: Exception) {}
             }
+            AdvisorResponse(error = "Connection failed. Please check your internet connection or ensure your backend server is running.")
         }
     }
 
