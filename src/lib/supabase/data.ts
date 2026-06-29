@@ -94,7 +94,11 @@ export async function fetchUserAIContext(): Promise<AIContext> {
       minimum_due: Number(c.minimum_due),
       statement_date: Number(c.statement_date),
       due_date: Number(c.due_date),
-      status: c.status
+      status: c.status,
+      bill_due: Number(c.bill_due || 0),
+      interest_rate: Number(c.interest_rate || 40.0),
+      statement_date_full: c.statement_date_full || undefined,
+      due_date_full: c.due_date_full || undefined
     })),
     goals: (goals || []).map((g) => ({
       name: g.name,

@@ -252,7 +252,7 @@ export default function DashboardClient({
                 <span className="font-bold text-foreground">
                   {formatCurrency(cards.reduce((sum, c) => sum + c.minimum_due, 0))}
                   <span className="text-[9px] text-muted-foreground font-normal ml-1">
-                    (Rot: {formatCurrency(cards.reduce((sum, c) => sum + c.current_utilization, 0) * 0.02)})
+                    (Rot: {formatCurrency(cards.reduce((sum, c) => sum + (c.bill_due || 0), 0) * 0.02)})
                   </span>
                 </span>
               </div>

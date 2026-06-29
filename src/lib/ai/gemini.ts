@@ -51,6 +51,10 @@ export interface AIContext {
     statement_date: number
     due_date: number
     status: string
+    bill_due?: number
+    interest_rate?: number
+    statement_date_full?: string
+    due_date_full?: string
   }[]
   goals: {
     name: string

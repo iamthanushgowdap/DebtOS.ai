@@ -96,6 +96,7 @@ create table public.credit_cards (
   credit_limit numeric(15, 2) not null,
   current_utilization numeric(15, 2) not null default 0 check (current_utilization >= 0),
   minimum_due numeric(15, 2) not null default 0 check (minimum_due >= 0),
+  bill_due numeric(15, 2) not null default 0,
   statement_date integer not null check (statement_date >= 1 and statement_date <= 31),
   due_date integer not null check (due_date >= 1 and due_date <= 31),
   annual_fee numeric(10, 2) not null default 0,

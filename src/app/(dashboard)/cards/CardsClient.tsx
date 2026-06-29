@@ -33,6 +33,7 @@ interface CreditCard {
   interest_rate?: number
   statement_date_full?: string
   due_date_full?: string
+  bill_due?: number
 }
 
 interface Payment {
@@ -77,6 +78,7 @@ export default function CardsClient({
     credit_limit: '',
     current_utilization: '0',
     minimum_due: '0',
+    bill_due: '0',
     statement_date: '10',
     due_date: '25',
     annual_fee: '0',
@@ -102,8 +104,8 @@ export default function CardsClient({
 
   const openRotateModal = (card: CreditCard) => {
     setSelectedCard(card)
-    setRotateAmount(String(card.current_utilization || ''))
-    setCashoutAmount(String(card.current_utilization || ''))
+    setRotateAmount(String(card.bill_due || ''))
+    setCashoutAmount(String(card.bill_due || ''))
     setRotationFeePercent('2.0')
     setIsRotateOpen(true)
   }
@@ -118,6 +120,7 @@ export default function CardsClient({
     const feeAmt = Math.round((drawAmt * feePct) / 100)
 
     const updatedUtilization = Math.max(0, Number(selectedCard.current_utilization) - payAmt + drawAmt)
+    const updatedBillDue = Math.max(0, Number(selectedCard.bill_due || 0) - payAmt)
 
     // 1. Log Payment
     const { data: newPayment, error: payError } = await supabase
@@ -170,14 +173,14 @@ export default function CardsClient({
       }
     }
 
-    // 4. Update Card Utilization
+    // 4. Update Card Utilization and Bill Due
     const { error: cardError } = await supabase
       .from('credit_cards')
-      .update({ current_utilization: updatedUtilization })
+      .update({ current_utilization: updatedUtilization, bill_due: updatedBillDue })
       .eq('id', selectedCard.id)
 
     if (cardError) {
-      alert('Failed to update utilization: ' + cardError.message)
+      alert('Failed to update card details: ' + cardError.message)
       return
     }
 
@@ -185,11 +188,11 @@ export default function CardsClient({
     await supabase.from('audit_logs').insert({
       user_id: userId,
       action: 'rotate_credit_card',
-      details: { card_name: selectedCard.card_name, payment_amount: payAmt, cashout_amount: drawAmt, fee: feeAmt, utilization_remaining: updatedUtilization }
+      details: { card_name: selectedCard.card_name, payment_amount: payAmt, cashout_amount: drawAmt, fee: feeAmt, utilization_remaining: updatedUtilization, bill_due_remaining: updatedBillDue }
     })
 
     // 6. Update local state
-    setCards(prev => prev.map(c => c.id === selectedCard.id ? { ...c, current_utilization: updatedUtilization } : c))
+    setCards(prev => prev.map(c => c.id === selectedCard.id ? { ...c, current_utilization: updatedUtilization, bill_due: updatedBillDue } : c))
     if (newPayment) {
       setPayments(prev => [newPayment[0] as unknown as Payment, ...prev])
     }
@@ -202,6 +205,7 @@ export default function CardsClient({
   // Calculations
   const totalLimit = cards.reduce((sum, c) => sum + Number(c.credit_limit), 0)
   const totalUtilization = cards.reduce((sum, c) => sum + Number(c.current_utilization), 0)
+  const totalBillDue = cards.reduce((sum, c) => sum + Number(c.bill_due || 0), 0)
   const totalAvailable = totalLimit - totalUtilization
   const globalUtilizationPercent = totalLimit > 0 ? Math.round((totalUtilization / totalLimit) * 100) : 0
 
@@ -212,6 +216,7 @@ export default function CardsClient({
       credit_limit: '',
       current_utilization: '0',
       minimum_due: '0',
+      bill_due: '0',
       statement_date: '10',
       due_date: '25',
       annual_fee: '0',
@@ -229,6 +234,7 @@ export default function CardsClient({
       credit_limit: String(card.credit_limit),
       current_utilization: String(card.current_utilization),
       minimum_due: String(card.minimum_due),
+      bill_due: String(card.bill_due || '0'),
       statement_date: String(card.statement_date),
       due_date: String(card.due_date),
       annual_fee: String(card.annual_fee),
@@ -246,7 +252,7 @@ export default function CardsClient({
 
   const openStatementModal = (card: CreditCard) => {
     setSelectedCard(card)
-    setStatementBill(String(card.current_utilization || ''))
+    setStatementBill(String(card.bill_due || ''))
     setStatementMinDue(String(card.minimum_due || ''))
     setStatementDateFull(card.statement_date_full || '')
     setStatementDueDateFull(card.due_date_full || '')
@@ -260,6 +266,7 @@ export default function CardsClient({
     const limit = Number(formData.credit_limit)
     const utilization = 0
     const minDue = 0
+    const billDueVal = 0
     const interestRateVal = Number(formData.interest_rate || 40.0)
 
     const { data, error } = await supabase
@@ -271,6 +278,7 @@ export default function CardsClient({
         credit_limit: limit,
         current_utilization: utilization,
         minimum_due: minDue,
+        bill_due: billDueVal,
         statement_date: 10,
         due_date: 25,
         annual_fee: Number(formData.annual_fee || 0),
@@ -301,6 +309,7 @@ export default function CardsClient({
         credit_limit: Number(formData.credit_limit),
         current_utilization: Number(formData.current_utilization),
         minimum_due: Number(formData.minimum_due),
+        bill_due: Number(formData.bill_due || 0),
         statement_date: Number(formData.statement_date),
         due_date: Number(formData.due_date),
         annual_fee: Number(formData.annual_fee),
@@ -335,8 +344,9 @@ export default function CardsClient({
     const { data, error } = await supabase
       .from('credit_cards')
       .update({
-        current_utilization: billVal,
+        current_utilization: Math.max(selectedCard.current_utilization, billVal),
         minimum_due: minDueVal,
+        bill_due: billVal,
         statement_date: stmtDay,
         due_date: dueDay,
         statement_date_full: statementDateFull,
@@ -504,7 +514,7 @@ export default function CardsClient({
         </div>
         <div className="bg-card border border-border p-4 rounded-xl">
           <span className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider block">Rotation Cost (2%)</span>
-          <span className="text-md lg:text-lg font-black text-blue-400 mt-1 block">{formatCurrency(totalUtilization * 0.02)}</span>
+          <span className="text-md lg:text-lg font-black text-blue-400 mt-1 block">{formatCurrency(totalBillDue * 0.02)}</span>
         </div>
         <div className="bg-card border border-border p-4 rounded-xl">
           <span className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider block">Available Limit</span>
@@ -567,7 +577,7 @@ export default function CardsClient({
                   {/* Utilization Progress Slider */}
                   <div className="space-y-1">
                     <div className="flex justify-between text-[10px] font-semibold text-muted-foreground">
-                      <span>Card Debt (Utilization)</span>
+                      <span>Card Spent (Utilization)</span>
                       <span className={styles.text}>{utilPercent}% Used</span>
                     </div>
                     <div className="text-md font-extrabold text-foreground">
@@ -600,6 +610,14 @@ export default function CardsClient({
                       <span className="text-primary font-bold mt-0.5 block">{formatCurrency(card.minimum_due)}</span>
                     </div>
                     <div>
+                      <span className="text-muted-foreground block">Bill Due</span>
+                      <span className="text-rose-400 font-bold mt-0.5 block">{formatCurrency(card.bill_due || 0)}</span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground block">Rotation Cost (2%)</span>
+                      <span className="text-blue-400 font-bold mt-0.5 block">{formatCurrency((card.bill_due || 0) * 0.02)}</span>
+                    </div>
+                    <div>
                       <span className="text-muted-foreground block">Statement Date</span>
                       <span className="text-foreground font-bold mt-0.5 block">
                         {card.statement_date_full ? new Date(card.statement_date_full).toLocaleDateString('en-GB') : `Day ${card.statement_date}`}
@@ -618,10 +636,6 @@ export default function CardsClient({
                     <div>
                       <span className="text-muted-foreground block">Interest Rate</span>
                       <span className="text-foreground font-bold mt-0.5 block">{card.interest_rate || 40}% p.a.</span>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground block">Rotation Cost (2%)</span>
-                      <span className="text-blue-400 font-bold mt-0.5 block">{formatCurrency(card.current_utilization * 0.02)}</span>
                     </div>
                   </div>
 
