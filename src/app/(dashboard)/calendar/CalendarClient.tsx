@@ -390,12 +390,12 @@ export default function CalendarClient({
           {events.map((e, idx) => (
             <div 
               key={idx}
-              className={`text-[9px] px-1.5 py-0.5 rounded font-semibold truncate border ${
+              className={`text-[9px] px-1.5 py-0.5 rounded font-bold truncate border ${
                 e.status === 'paid' 
-                  ? 'bg-emerald-950/20 text-emerald-400 border-emerald-900/30' 
+                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
                   : e.status === 'overdue' 
-                    ? 'bg-rose-950/20 text-rose-400 border-rose-900/30 font-bold animate-pulse'
-                    : 'bg-amber-950/20 text-amber-400 border-amber-900/30'
+                    ? 'bg-rose-50 text-rose-700 border-rose-200 animate-pulse'
+                    : 'bg-amber-50 text-amber-700 border-amber-200'
               }`}
             >
               {e.name}: {formatCurrency(e.emi)}
@@ -480,10 +480,10 @@ export default function CalendarClient({
                   key={event.id}
                   className={`p-4 rounded-xl border flex flex-col justify-between gap-3 text-xs ${
                     event.status === 'paid' 
-                      ? 'bg-emerald-950/10 border-emerald-900/30' 
+                      ? 'bg-emerald-50/50 border-emerald-200' 
                       : event.status === 'overdue' 
-                        ? 'bg-rose-950/10 border-rose-900/30'
-                        : 'bg-amber-950/10 border-amber-900/30'
+                        ? 'bg-rose-50/50 border-rose-200'
+                        : 'bg-amber-50/50 border-amber-200'
                   }`}
                 >
                   <div className="flex justify-between items-start">
@@ -493,15 +493,15 @@ export default function CalendarClient({
                     </div>
                     <span className="text-sm font-black text-foreground">{formatCurrency(event.emi)}</span>
                   </div>
-
+ 
                    <div className="flex justify-between items-center text-[10px] text-muted-foreground font-semibold">
                     <span>{event.type === 'card' ? 'Current Utilization' : 'Remaining Balance'}: {formatCurrency(event.current_balance)}</span>
                     <span className={`px-2 py-0.5 rounded font-bold uppercase border ${
                       event.status === 'paid' 
-                        ? 'bg-emerald-950/20 text-emerald-400 border-emerald-900/30' 
+                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
                         : event.status === 'overdue' 
-                          ? 'bg-rose-950/20 text-rose-400 border-rose-900/30 animate-pulse'
-                          : 'bg-amber-950/20 text-amber-400 border-amber-900/30'
+                          ? 'bg-rose-50 text-rose-700 border-rose-200 animate-pulse'
+                          : 'bg-amber-50 text-amber-700 border-amber-200'
                     }`}>
                       {event.status}
                     </span>
