@@ -99,6 +99,9 @@ create table public.credit_cards (
   statement_date integer not null check (statement_date >= 1 and statement_date <= 31),
   due_date integer not null check (due_date >= 1 and due_date <= 31),
   annual_fee numeric(10, 2) not null default 0,
+  interest_rate numeric(5, 2) not null default 40.0,
+  statement_date_full date,
+  due_date_full date,
   status text not null default 'active',
   created_at timestamptz default now()
 );

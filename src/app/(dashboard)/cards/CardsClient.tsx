@@ -30,6 +30,9 @@ interface CreditCard {
   due_date: number
   annual_fee: number
   status: string
+  interest_rate?: number
+  statement_date_full?: string
+  due_date_full?: string
 }
 
 interface Payment {
@@ -64,6 +67,7 @@ export default function CardsClient({
   const [isAddOpen, setIsAddOpen] = useState(false)
   const [isEditOpen, setIsEditOpen] = useState(false)
   const [isPayOpen, setIsPayOpen] = useState(false)
+  const [isStatementOpen, setIsStatementOpen] = useState(false)
   const [selectedCard, setSelectedCard] = useState<CreditCard | null>(null)
 
   // Form Fields
@@ -71,16 +75,24 @@ export default function CardsClient({
     card_name: '',
     bank: '',
     credit_limit: '',
-    current_utilization: '',
-    minimum_due: '',
+    current_utilization: '0',
+    minimum_due: '0',
     statement_date: '10',
     due_date: '25',
     annual_fee: '0',
-    status: 'active'
+    status: 'active',
+    interest_rate: '40.0'
   })
 
   // Payment Modal Fields
   const [paymentAmount, setPaymentAmount] = useState('')
+
+  // Statement Modal Fields
+  const [statementBill, setStatementBill] = useState('')
+  const [statementMinDue, setStatementMinDue] = useState('')
+  const [statementDateFull, setStatementDateFull] = useState('')
+  const [statementDueDateFull, setStatementDueDateFull] = useState('')
+  const [statementInterestRate, setStatementInterestRate] = useState('40.0')
 
   // Rotation Modal Fields
   const [isRotateOpen, setIsRotateOpen] = useState(false)
@@ -203,7 +215,8 @@ export default function CardsClient({
       statement_date: '10',
       due_date: '25',
       annual_fee: '0',
-      status: 'active'
+      status: 'active',
+      interest_rate: '40.0'
     })
     setIsAddOpen(true)
   }
@@ -219,7 +232,8 @@ export default function CardsClient({
       statement_date: String(card.statement_date),
       due_date: String(card.due_date),
       annual_fee: String(card.annual_fee),
-      status: card.status
+      status: card.status,
+      interest_rate: String(card.interest_rate || '40.0')
     })
     setIsEditOpen(true)
   }
@@ -230,11 +244,23 @@ export default function CardsClient({
     setIsPayOpen(true)
   }
 
+  const openStatementModal = (card: CreditCard) => {
+    setSelectedCard(card)
+    setStatementBill(String(card.current_utilization || ''))
+    setStatementMinDue(String(card.minimum_due || ''))
+    setStatementDateFull(card.statement_date_full || '')
+    setStatementDueDateFull(card.due_date_full || '')
+    setStatementInterestRate(String(card.interest_rate || '40.0'))
+    setIsStatementOpen(true)
+  }
+
   // API Methods
   const handleAddCard = async (e: React.FormEvent) => {
     e.preventDefault()
     const limit = Number(formData.credit_limit)
-    const utilization = Number(formData.current_utilization)
+    const utilization = 0
+    const minDue = 0
+    const interestRateVal = Number(formData.interest_rate || 40.0)
 
     const { data, error } = await supabase
       .from('credit_cards')
@@ -244,11 +270,12 @@ export default function CardsClient({
         bank: formData.bank,
         credit_limit: limit,
         current_utilization: utilization,
-        minimum_due: Number(formData.minimum_due),
-        statement_date: Number(formData.statement_date),
-        due_date: Number(formData.due_date),
-        annual_fee: Number(formData.annual_fee),
-        status: formData.status
+        minimum_due: minDue,
+        statement_date: 10,
+        due_date: 25,
+        annual_fee: Number(formData.annual_fee || 0),
+        status: formData.status,
+        interest_rate: interestRateVal
       })
       .select()
 
@@ -277,7 +304,8 @@ export default function CardsClient({
         statement_date: Number(formData.statement_date),
         due_date: Number(formData.due_date),
         annual_fee: Number(formData.annual_fee),
-        status: formData.status
+        status: formData.status,
+        interest_rate: Number(formData.interest_rate || 40.0)
       })
       .eq('id', selectedCard.id)
       .select()
@@ -287,6 +315,46 @@ export default function CardsClient({
     } else if (data) {
       setCards(prev => prev.map(c => c.id === selectedCard.id ? (data[0] as CreditCard) : c))
       setIsEditOpen(false)
+      router.refresh()
+    }
+  }
+
+  const handleStatementSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!selectedCard || !statementBill || !statementMinDue || !statementDateFull || !statementDueDateFull) return
+
+    const billVal = Number(statementBill)
+    const minDueVal = Number(statementMinDue)
+    const rateVal = Number(statementInterestRate) || 40.0
+
+    const stmtDateObj = new Date(statementDateFull)
+    const dueDateObj = new Date(statementDueDateFull)
+    const stmtDay = isNaN(stmtDateObj.getDate()) ? 10 : stmtDateObj.getDate()
+    const dueDay = isNaN(dueDateObj.getDate()) ? 25 : dueDateObj.getDate()
+
+    const { data, error } = await supabase
+      .from('credit_cards')
+      .update({
+        current_utilization: billVal,
+        minimum_due: minDueVal,
+        statement_date: stmtDay,
+        due_date: dueDay,
+        statement_date_full: statementDateFull,
+        due_date_full: statementDueDateFull,
+        interest_rate: rateVal
+      })
+      .eq('id', selectedCard.id)
+      .select()
+
+    if (error) {
+      alert('Failed to update statement: ' + error.message)
+      return
+    }
+
+    if (data) {
+      setCards(prev => prev.map(c => c.id === selectedCard.id ? (data[0] as CreditCard) : c))
+      setIsStatementOpen(false)
+      confetti({ particleCount: 100, spread: 60 })
       router.refresh()
     }
   }
@@ -429,10 +497,14 @@ export default function CardsClient({
       </div>
 
       {/* Global Card Ratios */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 lg:gap-4">
         <div className="bg-card border border-border p-4 rounded-xl">
           <span className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider block">Total Borrowed</span>
           <span className="text-md lg:text-lg font-black text-foreground mt-1 block">{formatCurrency(totalUtilization)}</span>
+        </div>
+        <div className="bg-card border border-border p-4 rounded-xl">
+          <span className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider block">Rotation Cost (2%)</span>
+          <span className="text-md lg:text-lg font-black text-blue-400 mt-1 block">{formatCurrency(totalUtilization * 0.02)}</span>
         </div>
         <div className="bg-card border border-border p-4 rounded-xl">
           <span className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider block">Available Limit</span>
@@ -529,23 +601,47 @@ export default function CardsClient({
                     </div>
                     <div>
                       <span className="text-muted-foreground block">Statement Date</span>
-                      <span className="text-foreground font-bold mt-0.5 block">Day {card.statement_date}</span>
+                      <span className="text-foreground font-bold mt-0.5 block">
+                        {card.statement_date_full ? new Date(card.statement_date_full).toLocaleDateString('en-GB') : `Day ${card.statement_date}`}
+                      </span>
                     </div>
                     <div>
-                      <span className="text-muted-foreground block">Due In</span>
+                      <span className="text-muted-foreground block">Due Date / In</span>
                       <span className={`font-bold mt-0.5 block ${isPaid ? 'text-emerald-500' : daysLeft <= 3 ? 'text-rose-400' : 'text-emerald-400'}`}>
-                        {isPaid ? 'Paid 🎉' : daysLeft === 0 ? 'Due Today' : `${daysLeft} days`}
+                        {isPaid 
+                          ? 'Paid 🎉' 
+                          : card.due_date_full 
+                            ? `${new Date(card.due_date_full).toLocaleDateString('en-GB')} (${daysLeft === 0 ? 'Today' : `${daysLeft}d`})` 
+                            : daysLeft === 0 ? 'Due Today' : `${daysLeft} days`}
                       </span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground block">Interest Rate</span>
+                      <span className="text-foreground font-bold mt-0.5 block">{card.interest_rate || 40}% p.a.</span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground block">Rotation Cost (2%)</span>
+                      <span className="text-blue-400 font-bold mt-0.5 block">{formatCurrency(card.current_utilization * 0.02)}</span>
                     </div>
                   </div>
 
                   {/* Actions */}
-                  <div className="flex justify-between items-center gap-2 text-xs font-semibold">
-                    <span className="text-[9px] text-muted-foreground">Annual Fee: {formatCurrency(card.annual_fee)}</span>
-                    <div className="flex items-center gap-1.5">
+                  <div className="flex flex-col gap-2 pt-2 border-t border-border/20">
+                    <div className="flex justify-between items-center">
+                      <span className="text-[9px] text-muted-foreground">Annual Fee: {formatCurrency(card.annual_fee)}</span>
+                    </div>
+                    <div className="flex justify-end gap-1.5">
+                      <button
+                        onClick={() => openStatementModal(card)}
+                        className="flex items-center gap-1 px-2 py-1 bg-amber-500 hover:bg-amber-600 text-white rounded-md transition-all cursor-pointer text-[10px] font-semibold shadow-sm"
+                        title="Update card statement details"
+                      >
+                        <History className="h-3 w-3 text-white" />
+                        <span>Statement</span>
+                      </button>
                       <button
                         onClick={() => openRotateModal(card)}
-                        className="flex items-center gap-1 px-2.5 py-1.5 bg-blue-600/90 hover:bg-blue-500 text-white rounded-lg transition-all cursor-pointer text-[10px]"
+                        className="flex items-center gap-1 px-2 py-1 bg-blue-600/90 hover:bg-blue-500 text-white rounded-md transition-all cursor-pointer text-[10px] font-semibold"
                         title="Refinance by cashing out"
                       >
                         <Zap className="h-3 w-3 text-blue-100" />
@@ -553,7 +649,7 @@ export default function CardsClient({
                       </button>
                       <button
                         onClick={() => openPayModal(card)}
-                        className="flex items-center gap-1 px-2.5 py-1.5 bg-emerald-600/90 hover:bg-emerald-500 text-white rounded-lg transition-all cursor-pointer text-[10px]"
+                        className="flex items-center gap-1 px-2 py-1 bg-emerald-600/90 hover:bg-emerald-500 text-white rounded-md transition-all cursor-pointer text-[10px] font-semibold"
                       >
                         <CheckCircle className="h-3.5 w-3.5" />
                         <span>Pay Off</span>
@@ -636,23 +732,8 @@ export default function CardsClient({
                   <input type="number" required placeholder="₹ Credit Limit" value={formData.credit_limit} onChange={e => setFormData({...formData, credit_limit: e.target.value})} className="w-full p-2 bg-secondary/50 border border-border rounded-lg text-foreground focus:outline-none focus:border-primary" />
                 </div>
                 <div>
-                  <label className="block text-muted-foreground font-semibold mb-1">Current Utilization</label>
-                  <input type="number" required placeholder="₹ Current Outstanding" value={formData.current_utilization} onChange={e => setFormData({...formData, current_utilization: e.target.value})} className="w-full p-2 bg-secondary/50 border border-border rounded-lg text-foreground focus:outline-none focus:border-primary" />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-3 gap-3">
-                <div>
-                  <label className="block text-muted-foreground font-semibold mb-1">Minimum Due</label>
-                  <input type="number" placeholder="₹ Minimum" value={formData.minimum_due} onChange={e => setFormData({...formData, minimum_due: e.target.value})} className="w-full p-2 bg-secondary/50 border border-border rounded-lg text-foreground focus:outline-none focus:border-primary" />
-                </div>
-                <div>
-                  <label className="block text-muted-foreground font-semibold mb-1">Statement Date</label>
-                  <input type="number" min="1" max="31" required placeholder="1-31" value={formData.statement_date} onChange={e => setFormData({...formData, statement_date: e.target.value})} className="w-full p-2 bg-secondary/50 border border-border rounded-lg text-foreground focus:outline-none focus:border-primary" />
-                </div>
-                <div>
-                  <label className="block text-muted-foreground font-semibold mb-1">Due Date</label>
-                  <input type="number" min="1" max="31" required placeholder="1-31" value={formData.due_date} onChange={e => setFormData({...formData, due_date: e.target.value})} className="w-full p-2 bg-secondary/50 border border-border rounded-lg text-foreground focus:outline-none focus:border-primary" />
+                  <label className="block text-muted-foreground font-semibold mb-1">Interest Rate (% p.a.)</label>
+                  <input type="number" step="0.1" required placeholder="40.0" value={formData.interest_rate} onChange={e => setFormData({...formData, interest_rate: e.target.value})} className="w-full p-2 bg-secondary/50 border border-border rounded-lg text-foreground focus:outline-none focus:border-primary" />
                 </div>
               </div>
 
@@ -699,7 +780,7 @@ export default function CardsClient({
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-3 gap-3">
                 <div>
                   <label className="block text-muted-foreground font-semibold mb-1">Credit Limit</label>
                   <input type="number" required value={formData.credit_limit} onChange={e => setFormData({...formData, credit_limit: e.target.value})} className="w-full p-2 bg-secondary/50 border border-border rounded-lg text-foreground focus:outline-none focus:border-primary" />
@@ -707,6 +788,10 @@ export default function CardsClient({
                 <div>
                   <label className="block text-muted-foreground font-semibold mb-1">Utilization</label>
                   <input type="number" required value={formData.current_utilization} onChange={e => setFormData({...formData, current_utilization: e.target.value})} className="w-full p-2 bg-secondary/50 border border-border rounded-lg text-foreground focus:outline-none focus:border-primary" />
+                </div>
+                <div>
+                  <label className="block text-muted-foreground font-semibold mb-1">Interest Rate (%)</label>
+                  <input type="number" step="0.1" required value={formData.interest_rate} onChange={e => setFormData({...formData, interest_rate: e.target.value})} className="w-full p-2 bg-secondary/50 border border-border rounded-lg text-foreground focus:outline-none focus:border-primary" />
                 </div>
               </div>
 
@@ -792,7 +877,113 @@ export default function CardsClient({
                 </button>
               </div>
 
+              {Number(paymentAmount) < selectedCard.current_utilization && Number(paymentAmount) >= selectedCard.minimum_due && (
+                <div className="bg-amber-50 border border-amber-200 p-2.5 rounded-xl text-[10px] text-amber-800 flex gap-1.5">
+                  <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
+                  <p className="leading-normal">
+                    ⚠️ Paying less than the full statement balance will accrue interest at <strong className="text-foreground">{selectedCard.interest_rate || 40}% p.a.</strong> on the remaining unpaid balance of <strong className="text-foreground">{formatCurrency(selectedCard.current_utilization - Number(paymentAmount))}</strong> (approx. <strong className="text-foreground">{formatCurrency(Math.round(((selectedCard.current_utilization - Number(paymentAmount)) * (selectedCard.interest_rate || 40.0) / 100) / 12))}/month</strong>).
+                  </p>
+                </div>
+              )}
+
               <button type="submit" className="w-full py-2.5 px-4 rounded-lg bg-emerald-600 hover:bg-emerald-500 font-bold transition-all text-white cursor-pointer mt-4">Confirm Payment Receipt</button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================
+          MODAL: UPDATE STATEMENT DETAILS
+         ======================================================== */}
+      {isStatementOpen && selectedCard && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-card border border-border w-full max-w-md rounded-2xl p-6 shadow-2xl relative" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-center border-b border-border/50 pb-3 mb-4">
+              <h3 className="font-bold text-md text-foreground">Log Card Statement</h3>
+              <button onClick={() => setIsStatementOpen(false)} className="text-muted-foreground hover:text-foreground text-sm font-semibold p-1">Close</button>
+            </div>
+
+            <form onSubmit={handleStatementSubmit} className="space-y-3.5 text-xs text-slate-700">
+              <div className="bg-amber-50 border border-amber-200 p-3 rounded-xl text-[10px] text-amber-700 flex gap-2">
+                <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
+                <p className="leading-normal">
+                  Log your latest credit card statement details. This updates the outstanding balance, minimum due, and tracks payment deadlines in your calendar.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-muted-foreground font-semibold mb-1">Bill Due (Statement Total)</label>
+                  <input
+                    type="number"
+                    required
+                    placeholder="₹ Statement Balance"
+                    value={statementBill}
+                    onChange={e => setStatementBill(e.target.value)}
+                    className="w-full p-2 bg-secondary/50 border border-border rounded-lg text-foreground focus:outline-none focus:border-primary text-sm font-bold"
+                  />
+                </div>
+                <div>
+                  <label className="block text-muted-foreground font-semibold mb-1">Minimum Due</label>
+                  <input
+                    type="number"
+                    required
+                    placeholder="₹ Minimum Payment"
+                    value={statementMinDue}
+                    onChange={e => setStatementMinDue(e.target.value)}
+                    className="w-full p-2 bg-secondary/50 border border-border rounded-lg text-foreground focus:outline-none focus:border-primary text-sm font-bold"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-muted-foreground font-semibold mb-1">Statement Date</label>
+                  <input
+                    type="date"
+                    required
+                    placeholder="DD/MM/YYYY"
+                    value={statementDateFull}
+                    onChange={e => setStatementDateFull(e.target.value)}
+                    className="w-full p-2 bg-secondary/50 border border-border rounded-lg text-foreground focus:outline-none focus:border-primary text-sm font-semibold"
+                  />
+                </div>
+                <div>
+                  <label className="block text-muted-foreground font-semibold mb-1">Due Date</label>
+                  <input
+                    type="date"
+                    required
+                    placeholder="DD/MM/YYYY"
+                    value={statementDueDateFull}
+                    onChange={e => setStatementDueDateFull(e.target.value)}
+                    className="w-full p-2 bg-secondary/50 border border-border rounded-lg text-foreground focus:outline-none focus:border-primary text-sm font-semibold"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-muted-foreground font-semibold mb-1">Interest Rate (% per annum)</label>
+                <input
+                  type="number"
+                  step="0.1"
+                  required
+                  placeholder="40.0"
+                  value={statementInterestRate}
+                  onChange={e => setStatementInterestRate(e.target.value)}
+                  className="w-full p-2 bg-secondary/50 border border-border rounded-lg text-foreground focus:outline-none focus:border-primary text-sm font-bold"
+                />
+              </div>
+
+              {Number(statementBill) > 0 && Number(statementMinDue) > 0 && Number(statementBill) > Number(statementMinDue) && (
+                <div className="bg-rose-50 border border-rose-200 p-2.5 rounded-xl text-[10px] text-rose-700 flex gap-2">
+                  <AlertTriangle className="h-4 w-4 text-rose-500 shrink-0 mt-0.5" />
+                  <div className="leading-normal">
+                    <strong>⚠️ Interest Warning:</strong> If you only pay the minimum due of <strong>{formatCurrency(Number(statementMinDue))}</strong>, the remaining balance of <strong>{formatCurrency(Number(statementBill) - Number(statementMinDue))}</strong> will accrue finance charges at <strong>{statementInterestRate}% p.a.</strong>, costing approximately <strong>{formatCurrency(Math.round(((Number(statementBill) - Number(statementMinDue)) * (Number(statementInterestRate) / 100)) / 12))}/month</strong>.
+                  </div>
+                </div>
+              )}
+
+              <button type="submit" className="w-full py-2.5 px-4 rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-bold transition-all mt-4 cursor-pointer">Update Card Statement</button>
             </form>
           </div>
         </div>

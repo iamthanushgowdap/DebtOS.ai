@@ -198,21 +198,31 @@ export default function DashboardClient({
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
         
         {/* Metric Card 1: Remaining Debt */}
-        <div className="bg-card border border-border p-4 rounded-xl flex flex-col justify-between h-28 relative overflow-hidden">
+        <div className="bg-card border border-border p-4 rounded-xl flex flex-col justify-between min-h-28 relative overflow-hidden">
           <div>
             <span className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider block">Remaining Debt</span>
-            <span className="text-lg lg:text-xl font-extrabold text-foreground mt-1.5 block">
+            <span className="text-lg lg:text-xl font-extrabold text-foreground mt-1 block">
               {formatCurrency(totalDebtRemaining)}
             </span>
+            <div className="text-[10px] text-muted-foreground mt-1 space-y-0.5">
+              <div className="flex justify-between">
+                <span>Personal:</span>
+                <span className="font-bold text-foreground">{formatCurrency(loans.reduce((sum, l) => sum + l.current_balance, 0))}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Credit Card:</span>
+                <span className="font-bold text-foreground">{formatCurrency(cards.reduce((sum, c) => sum + c.current_utilization, 0))}</span>
+              </div>
+            </div>
           </div>
-          <div className="flex justify-between items-center text-[10px] text-muted-foreground">
+          <div className="flex justify-between items-center text-[9px] text-muted-foreground border-t border-border/50 pt-1.5 mt-2">
             <span>Principal Paid: {formatCurrency(principalPaid)}</span>
             <Wallet className="h-3.5 w-3.5 text-primary" />
           </div>
         </div>
 
         {/* Metric Card 2: Ledger Cash */}
-        <div className="bg-card border border-border p-4 rounded-xl flex flex-col justify-between h-28 relative overflow-hidden">
+        <div className="bg-card border border-border p-4 rounded-xl flex flex-col justify-between min-h-28 relative overflow-hidden">
           <div>
             <span className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider block">Available Cash</span>
             <span className="text-lg lg:text-xl font-extrabold text-emerald-400 mt-1.5 block">
@@ -226,14 +236,29 @@ export default function DashboardClient({
         </div>
 
         {/* Metric Card 3: Monthly EMIs */}
-        <div className="bg-card border border-border p-4 rounded-xl flex flex-col justify-between h-28 relative overflow-hidden">
+        <div className="bg-card border border-border p-4 rounded-xl flex flex-col justify-between min-h-28 relative overflow-hidden">
           <div>
             <span className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider block">Monthly EMI</span>
-            <span className="text-lg lg:text-xl font-extrabold text-foreground mt-1.5 block">
+            <span className="text-lg lg:text-xl font-extrabold text-foreground mt-1 block">
               {formatCurrency(monthlyEMI)}
             </span>
+            <div className="text-[10px] text-muted-foreground mt-1 space-y-0.5">
+              <div className="flex justify-between">
+                <span>Personal Loan:</span>
+                <span className="font-bold text-foreground">{formatCurrency(loans.reduce((sum, l) => sum + l.emi, 0))}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span>Credit Card:</span>
+                <span className="font-bold text-foreground">
+                  {formatCurrency(cards.reduce((sum, c) => sum + c.minimum_due, 0))}
+                  <span className="text-[9px] text-muted-foreground font-normal ml-1">
+                    (Rot: {formatCurrency(cards.reduce((sum, c) => sum + c.current_utilization, 0) * 0.02)})
+                  </span>
+                </span>
+              </div>
+            </div>
           </div>
-          <div className="flex justify-between items-center text-[10px] text-muted-foreground">
+          <div className="flex justify-between items-center text-[9px] text-muted-foreground border-t border-border/50 pt-1.5 mt-2">
             <span>Next bills sum</span>
             <Calendar className="h-3.5 w-3.5 text-blue-400" />
           </div>

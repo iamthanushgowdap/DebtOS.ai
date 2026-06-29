@@ -48,6 +48,7 @@ interface CreditCard {
   minimum_due: number
   statement_date: number
   due_date: number
+  due_date_full?: string
   annual_fee: number
   status: string
 }
@@ -192,7 +193,14 @@ export default function CalendarClient({
 
     // 2. Process Credit Cards
     cards.forEach(card => {
-      if (card.due_date === day && card.minimum_due > 0 && card.status === 'active') {
+      let isScheduledForDay = false
+      if (card.due_date_full) {
+        isScheduledForDay = (card.due_date_full === targetDateStr)
+      } else {
+        isScheduledForDay = (card.due_date === day)
+      }
+
+      if (isScheduledForDay && card.minimum_due > 0 && card.status === 'active') {
         const isPaid = isCardPaidForCycle(card, ccPayments, viewYear, viewMonth)
         
         let status: 'paid' | 'upcoming' | 'overdue' = 'upcoming'
