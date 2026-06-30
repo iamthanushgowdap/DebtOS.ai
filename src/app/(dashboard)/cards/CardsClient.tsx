@@ -246,14 +246,16 @@ export default function CardsClient({
 
   const openPayModal = (card: CreditCard) => {
     setSelectedCard(card)
-    setPaymentAmount(String(card.minimum_due || ''))
+    const displayMinDue = card.minimum_due > 0 ? card.minimum_due : Math.round(card.current_utilization * 0.05)
+    setPaymentAmount(String(displayMinDue || ''))
     setIsPayOpen(true)
   }
 
   const openStatementModal = (card: CreditCard) => {
     setSelectedCard(card)
     setStatementBill(String(card.bill_due || ''))
-    setStatementMinDue(String(card.minimum_due || ''))
+    const defaultMinDue = card.minimum_due > 0 ? card.minimum_due : Math.round(card.current_utilization * 0.05)
+    setStatementMinDue(String(defaultMinDue || ''))
     setStatementDateFull(card.statement_date_full || '')
     setStatementDueDateFull(card.due_date_full || '')
     setStatementInterestRate(String(card.interest_rate || '40.0'))
@@ -279,8 +281,8 @@ export default function CardsClient({
         current_utilization: utilization,
         minimum_due: minDue,
         bill_due: billDueVal,
-        statement_date: 10,
-        due_date: 25,
+        statement_date: Number(formData.statement_date || 10),
+        due_date: Number(formData.due_date || 25),
         annual_fee: Number(formData.annual_fee || 0),
         status: formData.status,
         interest_rate: interestRateVal
@@ -470,6 +472,79 @@ export default function CardsClient({
     }
   }
 
+  const getActiveStatementDates = (card: CreditCard) => {
+    const today = new Date()
+    today.setHours(0,0,0,0)
+    
+    let stmtDateObj: Date
+    let dueDateObj: Date
+    
+    if (card.statement_date_full && card.due_date_full) {
+      stmtDateObj = new Date(card.statement_date_full)
+      dueDateObj = new Date(card.due_date_full)
+      
+      // If the logged due date has already passed, we roll over to the current/next month's integer days automatically
+      if (dueDateObj.getTime() < today.getTime()) {
+        let year = today.getFullYear()
+        let month = today.getMonth()
+        
+        if (today.getDate() > card.due_date) {
+          month += 1
+          if (month > 11) {
+            month = 0
+            year += 1
+          }
+        }
+        
+        dueDateObj = new Date(year, month, card.due_date)
+        
+        let stmtMonth = month
+        let stmtYear = year
+        if (card.due_date < card.statement_date) {
+          stmtMonth -= 1
+          if (stmtMonth < 0) {
+            stmtMonth = 11
+            stmtYear -= 1
+          }
+        }
+        stmtDateObj = new Date(stmtYear, stmtMonth, card.statement_date)
+      }
+    } else {
+      let year = today.getFullYear()
+      let month = today.getMonth()
+      
+      if (today.getDate() > card.due_date) {
+        month += 1
+        if (month > 11) {
+          month = 0
+          year += 1
+        }
+      }
+      
+      dueDateObj = new Date(year, month, card.due_date)
+      
+      let stmtMonth = month
+      let stmtYear = year
+      if (card.due_date < card.statement_date) {
+        stmtMonth -= 1
+        if (stmtMonth < 0) {
+          stmtMonth = 11
+          stmtYear -= 1
+        }
+      }
+      stmtDateObj = new Date(stmtYear, stmtMonth, card.statement_date)
+    }
+    
+    const diffTime = dueDateObj.getTime() - today.getTime()
+    const daysRemaining = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+    
+    return {
+      statementDateStr: stmtDateObj.toISOString().split('T')[0],
+      dueDateStr: dueDateObj.toISOString().split('T')[0],
+      daysRemaining
+    }
+  }
+
   return (
     <div className="space-y-6">
       
@@ -546,8 +621,9 @@ export default function CardsClient({
             {cards.map((card) => {
               const utilPercent = card.credit_limit > 0 ? Math.round((card.current_utilization / card.credit_limit) * 100) : 0
               const styles = getCardStatusStyles(utilPercent)
-              const daysLeft = calculateDaysRemaining(card.due_date)
+              const { statementDateStr, dueDateStr, daysRemaining } = getActiveStatementDates(card)
               const isPaid = isCardPaidThisStatement(card, payments)
+              const displayMinDue = card.minimum_due > 0 ? card.minimum_due : Math.round(card.current_utilization * 0.05)
 
               // Suggesion: pay down to below 30%
               const targetUtilizationLimit = card.credit_limit * 0.3
@@ -607,7 +683,7 @@ export default function CardsClient({
                     </div>
                     <div>
                       <span className="text-muted-foreground block">Minimum Due</span>
-                      <span className="text-primary font-bold mt-0.5 block">{formatCurrency(card.minimum_due)}</span>
+                      <span className="text-primary font-bold mt-0.5 block">{formatCurrency(displayMinDue)}</span>
                     </div>
                     <div>
                       <span className="text-muted-foreground block">Bill Due</span>
@@ -620,17 +696,15 @@ export default function CardsClient({
                     <div>
                       <span className="text-muted-foreground block">Statement Date</span>
                       <span className="text-foreground font-bold mt-0.5 block">
-                        {card.statement_date_full ? new Date(card.statement_date_full).toLocaleDateString('en-GB') : `Day ${card.statement_date}`}
+                        {new Date(statementDateStr).toLocaleDateString('en-GB')}
                       </span>
                     </div>
                     <div>
                       <span className="text-muted-foreground block">Due Date / In</span>
-                      <span className={`font-bold mt-0.5 block ${isPaid ? 'text-emerald-500' : daysLeft <= 3 ? 'text-rose-400' : 'text-emerald-400'}`}>
+                      <span className={`font-bold mt-0.5 block ${isPaid ? 'text-emerald-500' : daysRemaining <= 3 ? 'text-rose-400' : 'text-emerald-400'}`}>
                         {isPaid 
                           ? 'Paid 🎉' 
-                          : card.due_date_full 
-                            ? `${new Date(card.due_date_full).toLocaleDateString('en-GB')} (${daysLeft === 0 ? 'Today' : `${daysLeft}d`})` 
-                            : daysLeft === 0 ? 'Due Today' : `${daysLeft} days`}
+                          : `${new Date(dueDateStr).toLocaleDateString('en-GB')} (${daysRemaining === 0 ? 'Today' : daysRemaining < 0 ? 'Overdue' : `${daysRemaining}d`})`}
                       </span>
                     </div>
                     <div>
@@ -748,6 +822,17 @@ export default function CardsClient({
                 <div>
                   <label className="block text-muted-foreground font-semibold mb-1">Interest Rate (% p.a.)</label>
                   <input type="number" step="0.1" required placeholder="40.0" value={formData.interest_rate} onChange={e => setFormData({...formData, interest_rate: e.target.value})} className="w-full p-2 bg-secondary/50 border border-border rounded-lg text-foreground focus:outline-none focus:border-primary" />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-muted-foreground font-semibold mb-1">Statement Day (1-31)</label>
+                  <input type="number" min="1" max="31" required placeholder="e.g. 10" value={formData.statement_date} onChange={e => setFormData({...formData, statement_date: e.target.value})} className="w-full p-2 bg-secondary/50 border border-border rounded-lg text-foreground focus:outline-none focus:border-primary" />
+                </div>
+                <div>
+                  <label className="block text-muted-foreground font-semibold mb-1">Due Day (1-31)</label>
+                  <input type="number" min="1" max="31" required placeholder="e.g. 25" value={formData.due_date} onChange={e => setFormData({...formData, due_date: e.target.value})} className="w-full p-2 bg-secondary/50 border border-border rounded-lg text-foreground focus:outline-none focus:border-primary" />
                 </div>
               </div>
 
@@ -933,7 +1018,11 @@ export default function CardsClient({
                     required
                     placeholder="₹ Statement Balance"
                     value={statementBill}
-                    onChange={e => setStatementBill(e.target.value)}
+                    onChange={e => {
+                      const val = e.target.value
+                      setStatementBill(val)
+                      setStatementMinDue(String(Math.round(Number(val) * 0.05)))
+                    }}
                     className="w-full p-2 bg-secondary/50 border border-border rounded-lg text-foreground focus:outline-none focus:border-primary text-sm font-bold"
                   />
                 </div>

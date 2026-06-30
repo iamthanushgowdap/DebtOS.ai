@@ -96,6 +96,31 @@ export default function DashboardClient({
     ? Math.round(Math.min(100, (activeGoal.current_amount / activeGoal.target_amount) * 100))
     : 0
 
+  const getActiveDueDateDaysRemaining = (dueDateDay: number, dueDateFullStr: string | null | undefined) => {
+    const today = new Date()
+    today.setHours(0,0,0,0)
+    
+    if (dueDateFullStr) {
+      const dueDateObj = new Date(dueDateFullStr)
+      if (dueDateObj.getTime() >= today.getTime()) {
+        return Math.ceil((dueDateObj.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+      }
+    }
+    
+    // Calculate based on integer day
+    let year = today.getFullYear()
+    let month = today.getMonth()
+    if (today.getDate() > dueDateDay) {
+      month += 1
+      if (month > 11) {
+        month = 0
+        year += 1
+      }
+    }
+    const dueDateObj = new Date(year, month, dueDateDay)
+    return Math.ceil((dueDateObj.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+  }
+
   // 4. Upcoming EMI Countdowns
   const upcomingEMIs = loans
     .map(l => {
@@ -140,15 +165,19 @@ export default function DashboardClient({
     .concat(
       cards
         .filter(c => !isCardPaidThisStatement(c, ccPayments))
-        .map(c => ({
-          name: c.card_name,
-          lender: c.bank,
-          emi: c.minimum_due,
-          dueDay: c.due_date,
-          daysLeft: calculateDaysRemaining(c.due_date),
-          resolvedDateStr: '',
-          type: 'card'
-        }))
+        .map(c => {
+          const displayMinDue = c.minimum_due > 0 ? c.minimum_due : Math.round(c.current_utilization * 0.05)
+          const daysRemaining = getActiveDueDateDaysRemaining(c.due_date, c.due_date_full)
+          return {
+            name: c.card_name,
+            lender: c.bank,
+            emi: displayMinDue,
+            dueDay: c.due_date,
+            daysLeft: daysRemaining,
+            resolvedDateStr: '',
+            type: 'card'
+          }
+        })
     )
     .filter(item => item.emi > 0)
     .sort((a, b) => a.daysLeft - b.daysLeft)
