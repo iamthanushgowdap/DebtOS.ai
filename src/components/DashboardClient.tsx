@@ -26,7 +26,7 @@ import {
   ResponsiveContainer,
   CartesianGrid
 } from 'recharts'
-import { formatCurrency, calculateDaysRemaining, parseLoanSchedule, calculateDaysUntilDate, isCardPaidThisStatement } from '@/lib/utils'
+import { formatCurrency, calculateDaysRemaining, parseLoanSchedule, calculateDaysUntilDate } from '@/lib/utils'
 import { AIContext } from '@/lib/ai/gemini'
 
 interface DashboardClientProps {
@@ -96,30 +96,7 @@ export default function DashboardClient({
     ? Math.round(Math.min(100, (activeGoal.current_amount / activeGoal.target_amount) * 100))
     : 0
 
-  const getActiveDueDateDaysRemaining = (dueDateDay: number, dueDateFullStr: string | null | undefined) => {
-    const today = new Date()
-    today.setHours(0,0,0,0)
-    
-    if (dueDateFullStr) {
-      const dueDateObj = new Date(dueDateFullStr)
-      if (dueDateObj.getTime() >= today.getTime()) {
-        return Math.ceil((dueDateObj.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
-      }
-    }
-    
-    // Calculate based on integer day
-    let year = today.getFullYear()
-    let month = today.getMonth()
-    if (today.getDate() > dueDateDay) {
-      month += 1
-      if (month > 11) {
-        month = 0
-        year += 1
-      }
-    }
-    const dueDateObj = new Date(year, month, dueDateDay)
-    return Math.ceil((dueDateObj.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
-  }
+
 
   // 4. Upcoming EMI Countdowns
   const upcomingEMIs = loans
@@ -162,23 +139,6 @@ export default function DashboardClient({
         type: 'loan'
       }
     })
-    .concat(
-      cards
-        .filter(c => !isCardPaidThisStatement(c, ccPayments))
-        .map(c => {
-          const displayMinDue = c.minimum_due > 0 ? c.minimum_due : Math.round(c.current_utilization * 0.05)
-          const daysRemaining = getActiveDueDateDaysRemaining(c.due_date, c.due_date_full)
-          return {
-            name: c.card_name,
-            lender: c.bank,
-            emi: displayMinDue,
-            dueDay: c.due_date,
-            daysLeft: daysRemaining,
-            resolvedDateStr: '',
-            type: 'card'
-          }
-        })
-    )
     .filter(item => item.emi > 0)
     .sort((a, b) => a.daysLeft - b.daysLeft)
     .slice(0, 3)
@@ -267,22 +227,15 @@ export default function DashboardClient({
         {/* Metric Card 3: Monthly EMIs */}
         <div className="bg-card border border-border p-4 rounded-xl flex flex-col justify-between min-h-28 relative overflow-hidden">
           <div>
-            <span className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider block">Monthly EMI</span>
+            <span className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider block">Monthly Loan EMI</span>
             <span className="text-lg lg:text-xl font-extrabold text-foreground mt-1 block">
-              {formatCurrency(monthlyEMI)}
+              {formatCurrency(loans.reduce((sum, l) => sum + l.emi, 0))}
             </span>
             <div className="text-[10px] text-muted-foreground mt-1 space-y-0.5">
               <div className="flex justify-between">
-                <span>Personal Loan:</span>
-                <span className="font-bold text-foreground">{formatCurrency(loans.reduce((sum, l) => sum + l.emi, 0))}</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span>Credit Card:</span>
+                <span>Credit Card Rotation (2%):</span>
                 <span className="font-bold text-foreground">
-                  {formatCurrency(cards.reduce((sum, c) => sum + c.minimum_due, 0))}
-                  <span className="text-[9px] text-muted-foreground font-normal ml-1">
-                    (Rot: {formatCurrency(cards.reduce((sum, c) => sum + (c.bill_due || 0), 0) * 0.02)})
-                  </span>
+                  {formatCurrency(cards.reduce((sum, c) => sum + Number(c.current_utilization), 0) * 0.02)}
                 </span>
               </div>
             </div>

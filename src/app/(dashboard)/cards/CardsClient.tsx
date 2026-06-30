@@ -15,7 +15,7 @@ import {
   Clock,
   Zap
 } from 'lucide-react'
-import { formatCurrency, calculateDaysRemaining, isCardPaidThisStatement, getLocalTodayStr } from '@/lib/utils'
+import { formatCurrency, getLocalTodayStr } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 import confetti from 'canvas-confetti'
 
@@ -104,8 +104,8 @@ export default function CardsClient({
 
   const openRotateModal = (card: CreditCard) => {
     setSelectedCard(card)
-    setRotateAmount(String(card.bill_due || ''))
-    setCashoutAmount(String(card.bill_due || ''))
+    setRotateAmount(String(card.current_utilization || ''))
+    setCashoutAmount(String(card.current_utilization || ''))
     setRotationFeePercent('2.0')
     setIsRotateOpen(true)
   }
@@ -266,10 +266,10 @@ export default function CardsClient({
   const handleAddCard = async (e: React.FormEvent) => {
     e.preventDefault()
     const limit = Number(formData.credit_limit)
-    const utilization = 0
+    const utilization = Number(formData.current_utilization || 0)
     const minDue = 0
     const billDueVal = 0
-    const interestRateVal = Number(formData.interest_rate || 40.0)
+    const interestRateVal = 40.0
 
     const { data, error } = await supabase
       .from('credit_cards')
@@ -281,10 +281,10 @@ export default function CardsClient({
         current_utilization: utilization,
         minimum_due: minDue,
         bill_due: billDueVal,
-        statement_date: Number(formData.statement_date || 10),
-        due_date: Number(formData.due_date || 25),
-        annual_fee: Number(formData.annual_fee || 0),
-        status: formData.status,
+        statement_date: 10,
+        due_date: 25,
+        annual_fee: 0,
+        status: 'active',
         interest_rate: interestRateVal
       })
       .select()
@@ -309,14 +309,7 @@ export default function CardsClient({
         card_name: formData.card_name,
         bank: formData.bank,
         credit_limit: Number(formData.credit_limit),
-        current_utilization: Number(formData.current_utilization),
-        minimum_due: Number(formData.minimum_due),
-        bill_due: Number(formData.bill_due || 0),
-        statement_date: Number(formData.statement_date),
-        due_date: Number(formData.due_date),
-        annual_fee: Number(formData.annual_fee),
-        status: formData.status,
-        interest_rate: Number(formData.interest_rate || 40.0)
+        current_utilization: Number(formData.current_utilization)
       })
       .eq('id', selectedCard.id)
       .select()
@@ -472,78 +465,7 @@ export default function CardsClient({
     }
   }
 
-  const getActiveStatementDates = (card: CreditCard) => {
-    const today = new Date()
-    today.setHours(0,0,0,0)
-    
-    let stmtDateObj: Date
-    let dueDateObj: Date
-    
-    if (card.statement_date_full && card.due_date_full) {
-      stmtDateObj = new Date(card.statement_date_full)
-      dueDateObj = new Date(card.due_date_full)
-      
-      // If the logged due date has already passed, we roll over to the current/next month's integer days automatically
-      if (dueDateObj.getTime() < today.getTime()) {
-        let year = today.getFullYear()
-        let month = today.getMonth()
-        
-        if (today.getDate() > card.due_date) {
-          month += 1
-          if (month > 11) {
-            month = 0
-            year += 1
-          }
-        }
-        
-        dueDateObj = new Date(year, month, card.due_date)
-        
-        let stmtMonth = month
-        let stmtYear = year
-        if (card.due_date < card.statement_date) {
-          stmtMonth -= 1
-          if (stmtMonth < 0) {
-            stmtMonth = 11
-            stmtYear -= 1
-          }
-        }
-        stmtDateObj = new Date(stmtYear, stmtMonth, card.statement_date)
-      }
-    } else {
-      let year = today.getFullYear()
-      let month = today.getMonth()
-      
-      if (today.getDate() > card.due_date) {
-        month += 1
-        if (month > 11) {
-          month = 0
-          year += 1
-        }
-      }
-      
-      dueDateObj = new Date(year, month, card.due_date)
-      
-      let stmtMonth = month
-      let stmtYear = year
-      if (card.due_date < card.statement_date) {
-        stmtMonth -= 1
-        if (stmtMonth < 0) {
-          stmtMonth = 11
-          stmtYear -= 1
-        }
-      }
-      stmtDateObj = new Date(stmtYear, stmtMonth, card.statement_date)
-    }
-    
-    const diffTime = dueDateObj.getTime() - today.getTime()
-    const daysRemaining = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
-    
-    return {
-      statementDateStr: stmtDateObj.toISOString().split('T')[0],
-      dueDateStr: dueDateObj.toISOString().split('T')[0],
-      daysRemaining
-    }
-  }
+
 
   return (
     <div className="space-y-6">
@@ -589,7 +511,7 @@ export default function CardsClient({
         </div>
         <div className="bg-card border border-border p-4 rounded-xl">
           <span className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider block">Rotation Cost (2%)</span>
-          <span className="text-md lg:text-lg font-black text-blue-400 mt-1 block">{formatCurrency(totalBillDue * 0.02)}</span>
+          <span className="text-md lg:text-lg font-black text-blue-400 mt-1 block">{formatCurrency(totalUtilization * 0.02)}</span>
         </div>
         <div className="bg-card border border-border p-4 rounded-xl">
           <span className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider block">Available Limit</span>
@@ -621,9 +543,6 @@ export default function CardsClient({
             {cards.map((card) => {
               const utilPercent = card.credit_limit > 0 ? Math.round((card.current_utilization / card.credit_limit) * 100) : 0
               const styles = getCardStatusStyles(utilPercent)
-              const { statementDateStr, dueDateStr, daysRemaining } = getActiveStatementDates(card)
-              const isPaid = isCardPaidThisStatement(card, payments)
-              const displayMinDue = card.minimum_due > 0 ? card.minimum_due : Math.round(card.current_utilization * 0.05)
 
               // Suggesion: pay down to below 30%
               const targetUtilizationLimit = card.credit_limit * 0.3
@@ -682,67 +601,21 @@ export default function CardsClient({
                       <span className="text-emerald-400 font-bold mt-0.5 block">{formatCurrency(card.credit_limit - card.current_utilization)}</span>
                     </div>
                     <div>
-                      <span className="text-muted-foreground block">Minimum Due</span>
-                      <span className="text-primary font-bold mt-0.5 block">{formatCurrency(displayMinDue)}</span>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground block">Bill Due</span>
-                      <span className="text-rose-400 font-bold mt-0.5 block">{formatCurrency(card.bill_due || 0)}</span>
-                    </div>
-                    <div>
                       <span className="text-muted-foreground block">Rotation Cost (2%)</span>
-                      <span className="text-blue-400 font-bold mt-0.5 block">{formatCurrency((card.bill_due || 0) * 0.02)}</span>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground block">Statement Date</span>
-                      <span className="text-foreground font-bold mt-0.5 block">
-                        {new Date(statementDateStr).toLocaleDateString('en-GB')}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground block">Due Date / In</span>
-                      <span className={`font-bold mt-0.5 block ${isPaid ? 'text-emerald-500' : daysRemaining <= 3 ? 'text-rose-400' : 'text-emerald-400'}`}>
-                        {isPaid 
-                          ? 'Paid 🎉' 
-                          : `${new Date(dueDateStr).toLocaleDateString('en-GB')} (${daysRemaining === 0 ? 'Today' : daysRemaining < 0 ? 'Overdue' : `${daysRemaining}d`})`}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground block">Interest Rate</span>
-                      <span className="text-foreground font-bold mt-0.5 block">{card.interest_rate || 40}% p.a.</span>
+                      <span className="text-blue-400 font-bold mt-0.5 block">{formatCurrency(card.current_utilization * 0.02)}</span>
                     </div>
                   </div>
 
                   {/* Actions */}
-                  <div className="flex flex-col gap-2 pt-2 border-t border-border/20">
-                    <div className="flex justify-between items-center">
-                      <span className="text-[9px] text-muted-foreground">Annual Fee: {formatCurrency(card.annual_fee)}</span>
-                    </div>
-                    <div className="flex justify-end gap-1.5">
-                      <button
-                        onClick={() => openStatementModal(card)}
-                        className="flex items-center gap-1 px-2 py-1 bg-amber-500 hover:bg-amber-600 text-white rounded-md transition-all cursor-pointer text-[10px] font-semibold shadow-sm"
-                        title="Update card statement details"
-                      >
-                        <History className="h-3 w-3 text-white" />
-                        <span>Statement</span>
-                      </button>
-                      <button
-                        onClick={() => openRotateModal(card)}
-                        className="flex items-center gap-1 px-2 py-1 bg-blue-600/90 hover:bg-blue-500 text-white rounded-md transition-all cursor-pointer text-[10px] font-semibold"
-                        title="Refinance by cashing out"
-                      >
-                        <Zap className="h-3 w-3 text-blue-100" />
-                        <span>Rotate</span>
-                      </button>
-                      <button
-                        onClick={() => openPayModal(card)}
-                        className="flex items-center gap-1 px-2 py-1 bg-emerald-600/90 hover:bg-emerald-500 text-white rounded-md transition-all cursor-pointer text-[10px] font-semibold"
-                      >
-                        <CheckCircle className="h-3.5 w-3.5" />
-                        <span>Pay Off</span>
-                      </button>
-                    </div>
+                  <div className="flex justify-end gap-1.5 pt-2 border-t border-border/20">
+                    <button
+                      onClick={() => openRotateModal(card)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600/90 hover:bg-blue-500 text-white rounded-lg transition-all cursor-pointer text-[10px] font-bold shadow-sm shadow-blue-500/10"
+                      title="Refinance by rotating limit"
+                    >
+                      <Zap className="h-3.5 w-3.5 text-blue-100" />
+                      <span>Rotate Card</span>
+                    </button>
                   </div>
 
                 </div>
@@ -820,33 +693,8 @@ export default function CardsClient({
                   <input type="number" required placeholder="₹ Credit Limit" value={formData.credit_limit} onChange={e => setFormData({...formData, credit_limit: e.target.value})} className="w-full p-2 bg-secondary/50 border border-border rounded-lg text-foreground focus:outline-none focus:border-primary" />
                 </div>
                 <div>
-                  <label className="block text-muted-foreground font-semibold mb-1">Interest Rate (% p.a.)</label>
-                  <input type="number" step="0.1" required placeholder="40.0" value={formData.interest_rate} onChange={e => setFormData({...formData, interest_rate: e.target.value})} className="w-full p-2 bg-secondary/50 border border-border rounded-lg text-foreground focus:outline-none focus:border-primary" />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-muted-foreground font-semibold mb-1">Statement Day (1-31)</label>
-                  <input type="number" min="1" max="31" required placeholder="e.g. 10" value={formData.statement_date} onChange={e => setFormData({...formData, statement_date: e.target.value})} className="w-full p-2 bg-secondary/50 border border-border rounded-lg text-foreground focus:outline-none focus:border-primary" />
-                </div>
-                <div>
-                  <label className="block text-muted-foreground font-semibold mb-1">Due Day (1-31)</label>
-                  <input type="number" min="1" max="31" required placeholder="e.g. 25" value={formData.due_date} onChange={e => setFormData({...formData, due_date: e.target.value})} className="w-full p-2 bg-secondary/50 border border-border rounded-lg text-foreground focus:outline-none focus:border-primary" />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-muted-foreground font-semibold mb-1">Annual Fee (INR)</label>
-                  <input type="number" placeholder="₹ Annual Fee" value={formData.annual_fee} onChange={e => setFormData({...formData, annual_fee: e.target.value})} className="w-full p-2 bg-secondary/50 border border-border rounded-lg text-foreground focus:outline-none focus:border-primary" />
-                </div>
-                <div>
-                  <label className="block text-muted-foreground font-semibold mb-1">Status</label>
-                  <select value={formData.status} onChange={e => setFormData({...formData, status: e.target.value})} className="w-full p-2 bg-secondary/50 border border-border rounded-lg text-foreground focus:outline-none focus:border-primary">
-                    <option value="active">Active</option>
-                    <option value="inactive">Inactive</option>
-                  </select>
+                  <label className="block text-muted-foreground font-semibold mb-1">Current Utilization</label>
+                  <input type="number" required placeholder="₹ Spent Amount" value={formData.current_utilization} onChange={e => setFormData({...formData, current_utilization: e.target.value})} className="w-full p-2 bg-secondary/50 border border-border rounded-lg text-foreground focus:outline-none focus:border-primary" />
                 </div>
               </div>
 
@@ -879,47 +727,14 @@ export default function CardsClient({
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-muted-foreground font-semibold mb-1">Credit Limit</label>
                   <input type="number" required value={formData.credit_limit} onChange={e => setFormData({...formData, credit_limit: e.target.value})} className="w-full p-2 bg-secondary/50 border border-border rounded-lg text-foreground focus:outline-none focus:border-primary" />
                 </div>
                 <div>
-                  <label className="block text-muted-foreground font-semibold mb-1">Utilization</label>
+                  <label className="block text-muted-foreground font-semibold mb-1">Current Utilization</label>
                   <input type="number" required value={formData.current_utilization} onChange={e => setFormData({...formData, current_utilization: e.target.value})} className="w-full p-2 bg-secondary/50 border border-border rounded-lg text-foreground focus:outline-none focus:border-primary" />
-                </div>
-                <div>
-                  <label className="block text-muted-foreground font-semibold mb-1">Interest Rate (%)</label>
-                  <input type="number" step="0.1" required value={formData.interest_rate} onChange={e => setFormData({...formData, interest_rate: e.target.value})} className="w-full p-2 bg-secondary/50 border border-border rounded-lg text-foreground focus:outline-none focus:border-primary" />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-3 gap-3">
-                <div>
-                  <label className="block text-muted-foreground font-semibold mb-1">Min Due</label>
-                  <input type="number" value={formData.minimum_due} onChange={e => setFormData({...formData, minimum_due: e.target.value})} className="w-full p-2 bg-secondary/50 border border-border rounded-lg text-foreground focus:outline-none focus:border-primary" />
-                </div>
-                <div>
-                  <label className="block text-muted-foreground font-semibold mb-1">Stmt Day</label>
-                  <input type="number" min="1" max="31" required value={formData.statement_date} onChange={e => setFormData({...formData, statement_date: e.target.value})} className="w-full p-2 bg-secondary/50 border border-border rounded-lg text-foreground focus:outline-none focus:border-primary" />
-                </div>
-                <div>
-                  <label className="block text-muted-foreground font-semibold mb-1">Due Day</label>
-                  <input type="number" min="1" max="31" required value={formData.due_date} onChange={e => setFormData({...formData, due_date: e.target.value})} className="w-full p-2 bg-secondary/50 border border-border rounded-lg text-foreground focus:outline-none focus:border-primary" />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-muted-foreground font-semibold mb-1">Annual Fee (INR)</label>
-                  <input type="number" value={formData.annual_fee} onChange={e => setFormData({...formData, annual_fee: e.target.value})} className="w-full p-2 bg-secondary/50 border border-border rounded-lg text-foreground focus:outline-none focus:border-primary" />
-                </div>
-                <div>
-                  <label className="block text-muted-foreground font-semibold mb-1">Status</label>
-                  <select value={formData.status} onChange={e => setFormData({...formData, status: e.target.value})} className="w-full p-2 bg-secondary/50 border border-border rounded-lg text-foreground focus:outline-none focus:border-primary">
-                    <option value="active">Active</option>
-                    <option value="inactive">Inactive</option>
-                  </select>
                 </div>
               </div>
 
