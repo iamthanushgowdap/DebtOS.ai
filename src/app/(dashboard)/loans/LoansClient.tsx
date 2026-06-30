@@ -96,7 +96,8 @@ export default function LoansClient({
     durationMonths: '12',
     due_day: '5',
     priority: 'medium',
-    notes: ''
+    notes: '',
+    start_date: getLocalTodayStr()
   })
   
   interface CustomScheduleField {
@@ -247,7 +248,8 @@ export default function LoansClient({
       durationMonths: '12',
       due_day: '5',
       priority: 'medium',
-      notes: ''
+      notes: '',
+      start_date: getLocalTodayStr()
     })
     setCustomSchedule(Array(12).fill(null).map(() => ({
       amount: '',
@@ -279,7 +281,8 @@ export default function LoansClient({
       durationMonths: String(duration),
       due_day: String(loan.due_day),
       priority: loan.priority,
-      notes: parsed.textNotes
+      notes: parsed.textNotes,
+      start_date: loan.start_date
     })
     setCustomSchedule(parsed.schedule.map(s => ({
       amount: String(s.amount || ''),
@@ -322,8 +325,8 @@ export default function LoansClient({
     const avgEMI = emiNums.reduce((a, b) => a + b, 0) / duration
 
     // Start/End date bounds
-    const startDate = getLocalTodayStr()
-    const endDateObj = new Date()
+    const startDate = formFields.start_date || getLocalTodayStr()
+    const endDateObj = new Date(startDate)
     endDateObj.setMonth(endDateObj.getMonth() + duration)
     const endDate = formatDateToLocalYYYYMMDD(endDateObj)
 
@@ -383,7 +386,7 @@ export default function LoansClient({
     const solvedAPR = monthlyRate * 12 * 100
     const avgEMI = emiNums.reduce((a, b) => a + b, 0) / duration
 
-    const startDate = selectedLoan.start_date
+    const startDate = formFields.start_date || selectedLoan.start_date
     const endDateObj = new Date(startDate)
     endDateObj.setMonth(endDateObj.getMonth() + duration)
     const endDate = formatDateToLocalYYYYMMDD(endDateObj)
@@ -850,7 +853,7 @@ export default function LoansClient({
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 <div>
                   <label className="block text-slate-500 mb-1">Loan Type</label>
                   <select value={formFields.loan_type} onChange={e => setFormFields({...formFields, loan_type: e.target.value})} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 focus:outline-none focus:border-blue-500">
@@ -869,6 +872,10 @@ export default function LoansClient({
                 <div>
                   <label className="block text-slate-500 mb-1">Duration (Months)</label>
                   <input type="number" required min="1" max="120" placeholder="Months" value={formFields.durationMonths} onChange={e => handleDurationChange(Number(e.target.value) || 12)} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 focus:outline-none focus:border-blue-500 focus:bg-white" />
+                </div>
+                <div>
+                  <label className="block text-slate-500 mb-1">Start Date</label>
+                  <input type="date" required value={formFields.start_date} onChange={e => setFormFields({...formFields, start_date: e.target.value})} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 focus:outline-none focus:border-blue-500 focus:bg-white" />
                 </div>
               </div>
 
@@ -895,7 +902,7 @@ export default function LoansClient({
                           <span>Month {index + 1}</span>
                           <span className="text-emerald-600 font-bold">
                             Resolved: {resolveScheduleDueDate(
-                              getLocalTodayStr(),
+                              formFields.start_date || getLocalTodayStr(),
                               index,
                               {
                                 dueDateType: item.dueDateType,
@@ -1092,7 +1099,7 @@ export default function LoansClient({
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 <div>
                   <label className="block text-slate-500 mb-1">Loan Type</label>
                   <select value={formFields.loan_type} onChange={e => setFormFields({...formFields, loan_type: e.target.value})} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 focus:outline-none focus:border-blue-500">
@@ -1111,6 +1118,10 @@ export default function LoansClient({
                 <div>
                   <label className="block text-slate-500 mb-1">Duration (Months)</label>
                   <input type="number" required min="1" max="120" value={formFields.durationMonths} onChange={e => handleDurationChange(Number(e.target.value) || 12)} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 focus:outline-none focus:border-blue-500 focus:bg-white" />
+                </div>
+                <div>
+                  <label className="block text-slate-500 mb-1">Start Date</label>
+                  <input type="date" required value={formFields.start_date} onChange={e => setFormFields({...formFields, start_date: e.target.value})} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 focus:outline-none focus:border-blue-500 focus:bg-white" />
                 </div>
               </div>
 
@@ -1137,7 +1148,7 @@ export default function LoansClient({
                           <span>Month {index + 1}</span>
                           <span className="text-emerald-600 font-bold">
                             Resolved: {resolveScheduleDueDate(
-                              selectedLoan?.start_date || getLocalTodayStr(),
+                              formFields.start_date || getLocalTodayStr(),
                               index,
                               {
                                 dueDateType: item.dueDateType,
