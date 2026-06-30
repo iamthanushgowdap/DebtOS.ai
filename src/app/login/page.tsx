@@ -69,8 +69,8 @@ export default function LoginPage() {
         
         {/* Branding header */}
         <div className="text-center space-y-2">
-          <div className="inline-flex p-3 bg-blue-50 text-blue-600 rounded-2xl mb-1">
-            <Sparkles className="h-6 w-6 animate-pulse" />
+          <div className="inline-flex p-1 overflow-hidden mb-1">
+            <img src="/logo.png" alt="Logo" className="h-12 w-12 object-contain" />
           </div>
           <h2 className="text-2xl font-black bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent tracking-tight">
             DebtOS AI

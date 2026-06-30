@@ -11,9 +11,12 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
+import androidx.lifecycle.lifecycleScope
 import com.example.debtosmobile.data.DataRepository
 import com.example.debtosmobile.theme.DebtOSMobileTheme
 import com.example.debtosmobile.worker.DueReminderWorker
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
 
@@ -38,6 +41,9 @@ class MainActivity : ComponentActivity() {
         // Schedule daily due reminders if user is logged in
         if (repo.isLoggedIn()) {
             DueReminderWorker.schedule(applicationContext)
+            lifecycleScope.launch(Dispatchers.IO) {
+                repo.refreshSessionIfNeeded()
+            }
         }
 
         enableEdgeToEdge()

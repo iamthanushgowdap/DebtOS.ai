@@ -35,6 +35,21 @@ class SupabaseClient {
         catch (e: Exception) { LoginResponse(error = e.message) }
     }
 
+    fun refreshSession(refreshToken: String): LoginResponse {
+        val body = """{"refresh_token":"$refreshToken"}"""
+            .toRequestBody(JSON_MEDIA)
+        val req = Request.Builder()
+            .url("$SUPABASE_URL/auth/v1/token?grant_type=refresh_token")
+            .addHeader("apikey", SUPABASE_ANON_KEY)
+            .addHeader("Content-Type", "application/json")
+            .post(body)
+            .build()
+        val resp = http.newCall(req).execute()
+        val raw = resp.body?.string() ?: return LoginResponse(error = "No response")
+        return try { json.decodeFromString<LoginResponse>(raw) }
+        catch (e: Exception) { LoginResponse(error = e.message) }
+    }
+
     // ─── Profile ──────────────────────────────────────────────────────────────
 
     fun getProfile(token: String, userId: String): Profile? {
@@ -69,6 +84,23 @@ class SupabaseClient {
             .patch(body)
             .build()
         http.newCall(req).execute().close()
+    }
+
+    fun rotateCard(token: String, cardId: String, newUtilization: Double, newBillDue: Double): Boolean {
+        val body = """{"current_utilization":$newUtilization,"bill_due":$newBillDue}"""
+            .toRequestBody(JSON_MEDIA)
+        val req = Request.Builder()
+            .url("$SUPABASE_URL/rest/v1/credit_cards?id=eq.$cardId")
+            .addHeader("apikey", SUPABASE_ANON_KEY)
+            .addHeader("Authorization", "Bearer $token")
+            .addHeader("Content-Type", "application/json")
+            .addHeader("Prefer", "return=minimal")
+            .patch(body)
+            .build()
+        return try {
+            val resp = http.newCall(req).execute()
+            resp.isSuccessful.also { resp.close() }
+        } catch (e: Exception) { false }
     }
 
     // ─── Income ───────────────────────────────────────────────────────────────

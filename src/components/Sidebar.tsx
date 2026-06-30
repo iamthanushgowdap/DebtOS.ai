@@ -38,8 +38,8 @@ export default function Sidebar() {
       <div className="flex flex-col gap-6">
         {/* Logo */}
         <div className="flex items-center gap-3 px-2 py-3 border-b border-border/50">
-          <div className="bg-primary/10 p-2 rounded-lg text-primary">
-            <Sparkles className="h-6 w-6" />
+          <div className="p-0.5 rounded-lg overflow-hidden shrink-0">
+            <img src="/logo.png" alt="Logo" className="h-8 w-8 object-contain" />
           </div>
           <div>
             <h1 className="font-bold text-lg tracking-tight bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">

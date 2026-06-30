@@ -63,6 +63,7 @@ data class CreditCard(
     val bank: String = "",
     @SerialName("credit_limit") val creditLimit: Double = 0.0,
     @SerialName("current_utilization") val currentUtilization: Double = 0.0,
+    @SerialName("bill_due") val billDue: Double = 0.0,
     @SerialName("minimum_due") val minimumDue: Double = 0.0,
     @SerialName("statement_date") val statementDate: Int = 1,
     @SerialName("due_date") val dueDate: Int = 1,

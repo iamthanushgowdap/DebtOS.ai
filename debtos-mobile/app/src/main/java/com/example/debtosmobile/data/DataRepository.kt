@@ -12,6 +12,7 @@ import kotlinx.serialization.json.doubleOrNull
 
 private const val PREFS_NAME = "debtos_session"
 private const val KEY_TOKEN = "access_token"
+private const val KEY_REFRESH_TOKEN = "refresh_token"
 private const val KEY_USER_ID = "user_id"
 private const val KEY_USER_EMAIL = "user_email"
 
@@ -27,6 +28,10 @@ class DataRepository(context: Context) {
         get() = prefs.getString(KEY_TOKEN, "") ?: ""
         set(v) = prefs.edit().putString(KEY_TOKEN, v).apply()
 
+    var refreshToken: String
+        get() = prefs.getString(KEY_REFRESH_TOKEN, "") ?: ""
+        set(v) = prefs.edit().putString(KEY_REFRESH_TOKEN, v).apply()
+
     var userId: String
         get() = prefs.getString(KEY_USER_ID, "") ?: ""
         set(v) = prefs.edit().putString(KEY_USER_ID, v).apply()
@@ -39,8 +44,23 @@ class DataRepository(context: Context) {
 
     fun saveSession(response: LoginResponse) {
         token = response.accessToken
+        if (response.refreshToken.isNotEmpty()) {
+            refreshToken = response.refreshToken
+        }
         userId = response.user?.id ?: ""
         userEmail = response.user?.email ?: ""
+    }
+
+    suspend fun refreshSessionIfNeeded(): Boolean = withContext(Dispatchers.IO) {
+        val rToken = refreshToken
+        if (rToken.isEmpty()) return@withContext false
+        val resp = api.refreshSession(rToken)
+        if (resp.accessToken.isNotEmpty()) {
+            saveSession(resp)
+            true
+        } else {
+            false
+        }
     }
 
     fun clearSession() {
@@ -69,7 +89,7 @@ class DataRepository(context: Context) {
             CachedCard(
                 id = it.id, cardName = it.cardName, bank = it.bank,
                 creditLimit = it.creditLimit, currentUtilization = it.currentUtilization,
-                minimumDue = it.minimumDue, statementDate = it.statementDate,
+                billDue = it.billDue, minimumDue = it.minimumDue, statementDate = it.statementDate,
                 dueDate = it.dueDate, status = it.status
             )
         })
@@ -241,6 +261,52 @@ class DataRepository(context: Context) {
             cal.get(java.util.Calendar.MONTH) + 1,
             cal.get(java.util.Calendar.DAY_OF_MONTH)
         )
+    }
+
+    suspend fun rotateCardLimit(
+        cardId: String,
+        cardName: String,
+        currentUtilization: Double,
+        currentBillDue: Double,
+        payAmt: Double,
+        drawAmt: Double,
+        feePct: Double
+    ): Boolean = withContext(Dispatchers.IO) {
+        val feeAmt = Math.round((drawAmt * feePct) / 100).toDouble()
+        val updatedUtilization = (currentUtilization - payAmt + drawAmt).coerceAtLeast(0.0)
+        val updatedBillDue = (currentBillDue - payAmt).coerceAtLeast(0.0)
+        val today = localTodayStr()
+
+        // 1. Log Payment
+        val okPay = api.insertCardPayment(token, CreditCardPaymentInsert(
+            creditCardId = cardId, userId = userId, amount = payAmt, paymentDate = today
+        ))
+        if (!okPay) return@withContext false
+
+        // 2. Log Cashout Income
+        if (drawAmt > 0) {
+            val okInc = api.insertIncome(token, IncomeInsert(
+                userId = userId, source = "Other", expectedAmount = drawAmt, receivedAmount = drawAmt,
+                status = "received", entryDate = today
+            ))
+            if (!okInc) return@withContext false
+        }
+
+        // 3. Log Rotation Fee Expense
+        if (feeAmt > 0) {
+            val okExp = api.insertExpense(token, ExpenseInsert(
+                userId = userId, category = "Bills", amount = feeAmt, entryDate = today,
+                description = "CC Rotation Fee (${feePct}%) - $cardName"
+            ))
+            if (!okExp) return@withContext false
+        }
+
+        // 4. Update Card Utilization and Bill Due
+        val okCard = api.rotateCard(token, cardId, updatedUtilization, updatedBillDue)
+        if (okCard) {
+            fetchAndCacheCards()
+        }
+        okCard
     }
 
     // ─── Cached Flows ─────────────────────────────────────────────────────────

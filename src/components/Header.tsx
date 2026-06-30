@@ -154,7 +154,7 @@ export default function Header() {
       <header className="sticky top-0 bg-background/80 backdrop-blur-md border-b border-border h-16 z-30 flex items-center justify-between px-4 lg:px-6">
         {/* Branding (Mobile only) */}
         <div className="flex items-center gap-2 lg:hidden">
-          <Sparkles className="h-5 w-5 text-primary" />
+          <img src="/logo.png" alt="Logo" className="h-6 w-6 object-contain" />
           <span className="font-bold text-md bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
             DebtOS AI
           </span>

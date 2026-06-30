@@ -49,6 +49,7 @@ data class CachedCard(
     val bank: String,
     val creditLimit: Double,
     val currentUtilization: Double,
+    val billDue: Double = 0.0,
     val minimumDue: Double,
     val statementDate: Int,
     val dueDate: Int,
