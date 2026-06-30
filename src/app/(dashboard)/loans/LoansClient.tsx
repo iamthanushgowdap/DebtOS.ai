@@ -17,7 +17,8 @@ import {
   ChevronUp,
   List,
   Flame,
-  FileText
+  FileText,
+  Undo
 } from 'lucide-react'
 import { 
   formatCurrency, 
@@ -86,6 +87,12 @@ export default function LoansClient({
   const [isAddOpen, setIsAddOpen] = useState(false)
   const [isEditOpen, setIsEditOpen] = useState(false)
   const [selectedLoan, setSelectedLoan] = useState<Loan | null>(null)
+
+  // Confirmation Modals State
+  const [logConfirmOpen, setLogConfirmOpen] = useState(false)
+  const [selectedLoanForLog, setSelectedLoanForLog] = useState<Loan | null>(null)
+  const [undoConfirmOpen, setUndoConfirmOpen] = useState(false)
+  const [selectedLoanForUndo, setSelectedLoanForUndo] = useState<Loan | null>(null)
 
   // Form Fields
   const [formFields, setFormFields] = useState({
@@ -442,7 +449,15 @@ export default function LoansClient({
     }
   }
 
-  const handleMarkPaid = async (loan: Loan) => {
+  const handleMarkPaid = (loan: Loan) => {
+    setSelectedLoanForLog(loan)
+    setLogConfirmOpen(true)
+  }
+
+  const executeMarkPaid = async () => {
+    if (!selectedLoanForLog) return
+    const loan = selectedLoanForLog
+
     const duration = getMonthsDifference(loan.start_date, loan.end_date)
     const { schedule, scheduleRows } = parseLoanSchedule(
       loan.notes || '',
@@ -458,6 +473,7 @@ export default function LoansClient({
     
     if (paymentsCount >= schedule.length) {
       alert('All scheduled EMIs for this loan are already logged as paid.')
+      setLogConfirmOpen(false)
       return
     }
 
@@ -478,6 +494,7 @@ export default function LoansClient({
 
     if (payError) {
       alert('Failed to log payment: ' + payError.message)
+      setLogConfirmOpen(false)
       return
     }
 
@@ -492,6 +509,7 @@ export default function LoansClient({
 
     if (loanError) {
       alert('Payment registered but balance update failed: ' + loanError.message)
+      setLogConfirmOpen(false)
       return
     }
 
@@ -523,8 +541,92 @@ export default function LoansClient({
         title: 'Loan Fully Repaid! 🎉',
         message: `Congratulations! You have fully closed your loan: ${loan.name} from ${loan.lender}.`
       })
-      router.refresh()
     }
+
+    setLogConfirmOpen(false)
+    setSelectedLoanForLog(null)
+    router.refresh()
+  }
+
+  const handleUndoPayment = (loan: Loan) => {
+    setSelectedLoanForUndo(loan)
+    setUndoConfirmOpen(true)
+  }
+
+  const executeUndoPayment = async () => {
+    if (!selectedLoanForUndo) return
+    const loan = selectedLoanForUndo
+
+    // Find the last payment for this loan
+    const loanPayments = payments.filter(p => p.loan_id === loan.id && p.status === 'paid')
+    if (loanPayments.length === 0) {
+      alert('No payments found to undo for this loan.')
+      setUndoConfirmOpen(false)
+      return
+    }
+
+    const lastPayment = loanPayments[0] // since new payments are unshifted, index 0 is the last logged one.
+
+    const duration = getMonthsDifference(loan.start_date, loan.end_date)
+    const { scheduleRows } = parseLoanSchedule(
+      loan.notes || '',
+      loan.emi,
+      loan.principal,
+      duration,
+      loan.start_date,
+      loan.due_day
+    )
+
+    const paymentsCount = loanPayments.length
+    if (paymentsCount === 0) {
+      setUndoConfirmOpen(false)
+      return
+    }
+
+    // Revert balance to startingBalance of the deleted row
+    const revertedBalance = scheduleRows[paymentsCount - 1] ? scheduleRows[paymentsCount - 1].startingBalance : loan.principal
+
+    // 1. Delete payment record
+    const { error: deleteError } = await supabase
+      .from('loan_payments')
+      .delete()
+      .eq('id', lastPayment.id)
+
+    if (deleteError) {
+      alert('Failed to delete payment record: ' + deleteError.message)
+      setUndoConfirmOpen(false)
+      return
+    }
+
+    // 2. Revert loan balance & status
+    const { error: loanError } = await supabase
+      .from('loans')
+      .update({
+        current_balance: revertedBalance,
+        status: 'active'
+      })
+      .eq('id', loan.id)
+
+    if (loanError) {
+      alert('Payment deleted but balance revert failed: ' + loanError.message)
+      setUndoConfirmOpen(false)
+      return
+    }
+
+    // 3. Log to audit_logs
+    await supabase.from('audit_logs').insert({
+      user_id: userId,
+      action: 'undo_emi_payment',
+      details: { loan_name: loan.name, reverted_amount: lastPayment.amount, reverted_balance: revertedBalance }
+    })
+
+    // 4. Update Client State
+    setLoans(prev => prev.map(l => l.id === loan.id ? { ...l, current_balance: revertedBalance, status: 'active' } : l))
+    setPayments(prev => prev.filter(p => p.id !== lastPayment.id))
+
+    setUndoConfirmOpen(false)
+    setSelectedLoanForUndo(null)
+    router.refresh()
   }
 
   return (
@@ -720,15 +822,28 @@ export default function LoansClient({
                       {isExpanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
                     </button>
                     
-                    {paymentsCount < schedule.length && (
-                      <button
-                        onClick={() => handleMarkPaid(loan)}
-                        className="flex items-center gap-1 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg transition-all shadow-sm shadow-emerald-500/10 cursor-pointer"
-                      >
-                        <Check className="h-3.5 w-3.5" />
-                        <span>Log Month {paymentsCount + 1} EMI</span>
-                      </button>
-                    )}
+                    <div className="flex items-center gap-2">
+                      {paymentsCount > 0 && (
+                        <button
+                          onClick={() => handleUndoPayment(loan)}
+                          className="flex items-center gap-1 px-3 py-2 bg-slate-100 hover:bg-rose-50 text-slate-600 hover:text-rose-600 border border-slate-200 hover:border-rose-200 rounded-lg transition-all cursor-pointer"
+                          title="Undo last EMI payment"
+                        >
+                          <Undo className="h-3.5 w-3.5" />
+                          <span>Undo Last</span>
+                        </button>
+                      )}
+                      
+                      {paymentsCount < schedule.length && (
+                        <button
+                          onClick={() => handleMarkPaid(loan)}
+                          className="flex items-center gap-1 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg transition-all shadow-sm shadow-emerald-500/10 cursor-pointer"
+                        >
+                          <Check className="h-3.5 w-3.5" />
+                          <span>Log Month {paymentsCount + 1} EMI</span>
+                        </button>
+                      )}
+                    </div>
                   </div>
 
                   {/* Expandable Amortization Drawer */}
@@ -1321,6 +1436,114 @@ export default function LoansClient({
           </div>
         </div>
       )}
+
+      {/* ========================================================
+          MODAL: CONFIRM EMI PAYMENT
+         ======================================================== */}
+      {logConfirmOpen && selectedLoanForLog && (() => {
+        const loan = selectedLoanForLog
+        const duration = getMonthsDifference(loan.start_date, loan.end_date)
+        const { schedule } = parseLoanSchedule(loan.notes || '', loan.emi, loan.principal, duration, loan.start_date, loan.due_day)
+        const paymentsCount = payments.filter(p => p.loan_id === loan.id && p.status === 'paid').length
+        const amount = schedule[paymentsCount]?.amount || loan.emi
+
+        return (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-white border border-slate-200 w-full max-w-sm rounded-2xl p-6 shadow-2xl relative" onClick={(e) => e.stopPropagation()}>
+              <div className="flex justify-between items-center border-b border-slate-200/80 pb-3 mb-4">
+                <h3 className="font-bold text-md text-slate-900 flex items-center gap-1.5">
+                  <Check className="h-5 w-5 text-emerald-600" />
+                  <span>Confirm EMI Logging</span>
+                </h3>
+                <button onClick={() => { setLogConfirmOpen(false); setSelectedLoanForLog(null); }} className="text-slate-500 hover:text-slate-800 text-sm font-semibold p-1 cursor-pointer">Close</button>
+              </div>
+
+              <div className="space-y-4 text-xs font-semibold text-slate-700">
+                <div className="bg-emerald-50 border border-emerald-200/60 p-3.5 rounded-xl text-center space-y-1">
+                  <span className="text-[10px] text-emerald-800 uppercase block tracking-wider font-bold">Month {paymentsCount + 1} EMI Amount</span>
+                  <span className="text-xl font-black text-emerald-600 block">{formatCurrency(amount)}</span>
+                  <span className="text-[9px] text-slate-400 block font-normal">Loan: {loan.name}</span>
+                </div>
+
+                <p className="text-slate-500 font-normal leading-normal text-center">
+                  Are you sure you want to log this EMI payment? This will update the loan outstanding balance and record the payment in your transaction history ledger.
+                </p>
+
+                <div className="flex gap-3 mt-4">
+                  <button
+                    type="button"
+                    onClick={() => { setLogConfirmOpen(false); setSelectedLoanForLog(null); }}
+                    className="flex-1 py-2 px-4 border border-slate-200 rounded-lg text-slate-700 hover:bg-slate-50 font-bold transition-all cursor-pointer text-center"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={executeMarkPaid}
+                    className="flex-1 py-2 px-4 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-bold transition-all cursor-pointer text-center"
+                  >
+                    Confirm & Log
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
+
+      {/* ========================================================
+          MODAL: CONFIRM UNDO EMI PAYMENT
+         ======================================================== */}
+      {undoConfirmOpen && selectedLoanForUndo && (() => {
+        const loan = selectedLoanForUndo
+        const loanPayments = payments.filter(p => p.loan_id === loan.id && p.status === 'paid')
+        const lastPayment = loanPayments[0]
+
+        if (!lastPayment) return null
+
+        return (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-white border border-slate-200 w-full max-w-sm rounded-2xl p-6 shadow-2xl relative" onClick={(e) => e.stopPropagation()}>
+              <div className="flex justify-between items-center border-b border-slate-200/80 pb-3 mb-4">
+                <h3 className="font-bold text-md text-slate-900 flex items-center gap-1.5">
+                  <Undo className="h-5 w-5 text-rose-600" />
+                  <span>Confirm Undo Payment</span>
+                </h3>
+                <button onClick={() => { setUndoConfirmOpen(false); setSelectedLoanForUndo(null); }} className="text-slate-500 hover:text-slate-800 text-sm font-semibold p-1 cursor-pointer">Close</button>
+              </div>
+
+              <div className="space-y-4 text-xs font-semibold text-slate-700">
+                <div className="bg-rose-50 border border-rose-200/60 p-3.5 rounded-xl text-center space-y-1">
+                  <span className="text-[10px] text-rose-800 uppercase block tracking-wider font-bold">Last Logged Payment</span>
+                  <span className="text-xl font-black text-rose-600 block">{formatCurrency(lastPayment.amount)}</span>
+                  <span className="text-[9px] text-slate-400 block font-normal">Paid Date: {lastPayment.payment_date}</span>
+                </div>
+
+                <p className="text-slate-500 font-normal leading-normal text-center">
+                  Are you sure you want to undo this payment? The payment record will be permanently deleted, and the loan's outstanding balance will be reverted.
+                </p>
+
+                <div className="flex gap-3 mt-4">
+                  <button
+                    type="button"
+                    onClick={() => { setUndoConfirmOpen(false); setSelectedLoanForUndo(null); }}
+                    className="flex-1 py-2 px-4 border border-slate-200 rounded-lg text-slate-700 hover:bg-slate-50 font-bold transition-all cursor-pointer text-center"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={executeUndoPayment}
+                    className="flex-1 py-2 px-4 bg-rose-600 hover:bg-rose-500 text-white rounded-lg font-bold transition-all cursor-pointer text-center"
+                  >
+                    Yes, Undo Payment
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
     </div>
   )
 }
