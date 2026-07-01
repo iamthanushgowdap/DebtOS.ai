@@ -100,7 +100,7 @@ fun WebViewScreen(url: String) {
             update = {
                 webView = it
             },
-            modifier = Modifier.fillMaxSize()
+            modifier = Modifier.fillMaxSize().statusBarsPadding()
         )
 
         // Custom loading splash screen matching the Web App's dark theme
