@@ -582,12 +582,21 @@ export default function LoansClient({
 
   const handleUndoPayment = (loan: Loan) => {
     setSelectedLoanForUndo(loan)
+    setEnteredPin('')
+    setPinError('')
     setUndoConfirmOpen(true)
   }
 
   const executeUndoPayment = async () => {
     if (!selectedLoanForUndo) return
     const loan = selectedLoanForUndo
+
+    if (userMpin) {
+      if (enteredPin !== userMpin) {
+        setPinError('Incorrect 4-digit MPIN. Please try again.')
+        return
+      }
+    }
 
     // Find the last payment for this loan
     const loanPayments = payments.filter(p => p.loan_id === loan.id && p.status === 'paid')
@@ -1618,6 +1627,35 @@ export default function LoansClient({
                   Are you sure you want to undo this payment? The payment record will be permanently deleted, and the loan's outstanding balance will be reverted.
                 </p>
 
+                {userMpin === '' ? (
+                  <div className="bg-amber-50 border border-amber-200/80 p-3 rounded-xl flex gap-2 text-[10px] text-amber-800 font-semibold leading-normal">
+                    <Info className="h-4 w-4 shrink-0 mt-0.5" />
+                    <div>
+                      <p>You must set up a 4-digit MPIN in Settings before undoing transactions.</p>
+                      <a href="/settings" className="text-blue-600 hover:underline block mt-1.5 font-bold">Go to Settings &rarr;</a>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-1 mt-2">
+                    <label className="block text-slate-500 text-left mb-1">Enter 4-Digit MPIN to Revert</label>
+                    <input
+                      type="password"
+                      maxLength={4}
+                      required
+                      placeholder="••••"
+                      value={enteredPin}
+                      onChange={e => {
+                        setEnteredPin(e.target.value.replace(/\D/g, ''))
+                        setPinError('')
+                      }}
+                      className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 focus:outline-none focus:border-blue-500 text-center font-mono tracking-widest text-sm font-bold"
+                    />
+                    {pinError && (
+                      <p className="text-rose-500 text-[10px] font-semibold text-center mt-1">{pinError}</p>
+                    )}
+                  </div>
+                )}
+
                 <div className="flex gap-3 mt-4">
                   <button
                     type="button"
@@ -1626,13 +1664,16 @@ export default function LoansClient({
                   >
                     Cancel
                   </button>
-                  <button
-                    type="button"
-                    onClick={executeUndoPayment}
-                    className="flex-1 py-2 px-4 bg-rose-600 hover:bg-rose-500 text-white rounded-lg font-bold transition-all cursor-pointer text-center"
-                  >
-                    Yes, Undo Payment
-                  </button>
+                  {userMpin !== '' && (
+                    <button
+                      type="button"
+                      onClick={executeUndoPayment}
+                      disabled={enteredPin.length !== 4}
+                      className="flex-1 py-2 px-4 bg-rose-600 hover:bg-rose-500 disabled:opacity-50 text-white rounded-lg font-bold transition-all cursor-pointer text-center"
+                    >
+                      Yes, Undo Payment
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
