@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { 
   Plus, 
@@ -13,7 +13,8 @@ import {
   CheckCircle,
   HelpCircle,
   Clock,
-  Zap
+  Zap,
+  Info
 } from 'lucide-react'
 import { formatCurrency, getLocalTodayStr } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
@@ -70,6 +71,19 @@ export default function CardsClient({
   const [isPayOpen, setIsPayOpen] = useState(false)
   const [isStatementOpen, setIsStatementOpen] = useState(false)
   const [selectedCard, setSelectedCard] = useState<CreditCard | null>(null)
+
+  // MPIN Validation States
+  const [userMpin, setUserMpin] = useState<string | null>(null)
+  const [addCardMpin, setAddCardMpin] = useState('')
+  const [addCardMpinError, setAddCardMpinError] = useState('')
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (user) {
+        setUserMpin(user.user_metadata?.mpin || '')
+      }
+    })
+  }, [])
 
   // Form Fields
   const [formData, setFormData] = useState({
@@ -210,6 +224,8 @@ export default function CardsClient({
   const globalUtilizationPercent = totalLimit > 0 ? Math.round((totalUtilization / totalLimit) * 100) : 0
 
   const openAddModal = () => {
+    setAddCardMpin('')
+    setAddCardMpinError('')
     setFormData({
       card_name: '',
       bank: '',
@@ -265,6 +281,12 @@ export default function CardsClient({
   // API Methods
   const handleAddCard = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (userMpin) {
+      if (addCardMpin !== userMpin) {
+        setAddCardMpinError('Incorrect 4-digit MPIN. Please try again.')
+        return
+      }
+    }
     const limit = Number(formData.credit_limit)
     const utilization = Number(formData.current_utilization || 0)
     const minDue = 0
@@ -698,7 +720,38 @@ export default function CardsClient({
                 </div>
               </div>
 
-              <button type="submit" className="w-full py-2.5 px-4 rounded-lg bg-primary hover:bg-primary/95 font-bold transition-all mt-4 cursor-pointer">Register Credit Card</button>
+              {userMpin === '' ? (
+                <div className="bg-amber-950/20 border border-amber-900/30 p-3 rounded-xl flex gap-2 text-[10px] text-amber-400 font-semibold leading-normal">
+                  <Info className="h-4 w-4 shrink-0 mt-0.5" />
+                  <div>
+                    <p>You must set up a 4-digit MPIN in Settings before adding credit cards.</p>
+                    <a href="/settings" className="text-blue-400 hover:underline block mt-1.5 font-bold">Go to Settings &rarr;</a>
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <label className="block text-muted-foreground font-semibold mb-1">Enter 4-Digit MPIN to Confirm Creation</label>
+                  <input
+                    type="password"
+                    maxLength={4}
+                    required
+                    placeholder="••••"
+                    value={addCardMpin}
+                    onChange={e => {
+                      setAddCardMpin(e.target.value.replace(/\D/g, ''))
+                      setAddCardMpinError('')
+                    }}
+                    className="w-full p-2 bg-secondary/50 border border-border rounded-lg text-foreground focus:outline-none focus:border-primary text-center font-mono tracking-widest text-sm font-bold"
+                  />
+                  {addCardMpinError && (
+                    <p className="text-rose-500 text-[10px] font-semibold text-center mt-1">{addCardMpinError}</p>
+                  )}
+                </div>
+              )}
+
+              {userMpin !== '' && (
+                <button type="submit" disabled={addCardMpin.length !== 4} className="w-full py-2.5 px-4 rounded-lg bg-primary hover:bg-primary/95 font-bold transition-all mt-4 cursor-pointer">Register Credit Card</button>
+              )}
             </form>
           </div>
         </div>

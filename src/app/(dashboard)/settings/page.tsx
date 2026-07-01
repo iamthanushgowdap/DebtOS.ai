@@ -22,11 +22,14 @@ export default async function SettingsPage() {
     .eq('id', user.id)
     .single()
 
+  const userMpin = user.user_metadata?.mpin || ''
+
   return (
     <SettingsClient 
       userId={user.id}
       userEmail={user.email || ''}
       profileName={profile?.name || ''}
+      initialMpin={userMpin}
     />
   )
 }

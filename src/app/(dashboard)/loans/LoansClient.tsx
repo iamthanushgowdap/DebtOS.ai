@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { 
   Plus, 
@@ -93,6 +93,21 @@ export default function LoansClient({
   const [selectedLoanForLog, setSelectedLoanForLog] = useState<Loan | null>(null)
   const [undoConfirmOpen, setUndoConfirmOpen] = useState(false)
   const [selectedLoanForUndo, setSelectedLoanForUndo] = useState<Loan | null>(null)
+
+  // MPIN Validation States
+  const [userMpin, setUserMpin] = useState<string | null>(null)
+  const [enteredPin, setEnteredPin] = useState('')
+  const [pinError, setPinError] = useState('')
+  const [addLoanMpin, setAddLoanMpin] = useState('')
+  const [addLoanMpinError, setAddLoanMpinError] = useState('')
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (user) {
+        setUserMpin(user.user_metadata?.mpin || '')
+      }
+    })
+  }, [])
 
   // Form Fields
   const [formFields, setFormFields] = useState({
@@ -247,6 +262,8 @@ export default function LoansClient({
   }
 
   const openAddModal = () => {
+    setAddLoanMpin('')
+    setAddLoanMpinError('')
     setFormFields({
       name: '',
       lender: '',
@@ -311,6 +328,12 @@ export default function LoansClient({
   // API Methods
   const handleAddLoan = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (userMpin) {
+      if (addLoanMpin !== userMpin) {
+        setAddLoanMpinError('Incorrect 4-digit MPIN. Please try again.')
+        return
+      }
+    }
     const principalNum = Number(formFields.principal)
     const duration = Number(formFields.durationMonths)
     
@@ -451,12 +474,21 @@ export default function LoansClient({
 
   const handleMarkPaid = (loan: Loan) => {
     setSelectedLoanForLog(loan)
+    setEnteredPin('')
+    setPinError('')
     setLogConfirmOpen(true)
   }
 
   const executeMarkPaid = async () => {
     if (!selectedLoanForLog) return
     const loan = selectedLoanForLog
+
+    if (userMpin) {
+      if (enteredPin !== userMpin) {
+        setPinError('Incorrect 4-digit MPIN. Please try again.')
+        return
+      }
+    }
 
     const duration = getMonthsDifference(loan.start_date, loan.end_date)
     const { schedule, scheduleRows } = parseLoanSchedule(
@@ -1185,7 +1217,38 @@ export default function LoansClient({
                 <input type="text" placeholder="e.g. foreclosure details, remarks" value={formFields.notes} onChange={e => setFormFields({...formFields, notes: e.target.value})} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 focus:outline-none focus:border-blue-500 focus:bg-white" />
               </div>
 
-              <button type="submit" className="w-full py-2.5 px-4 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-bold transition-all shadow-md shadow-blue-500/10 mt-2 cursor-pointer">Register Loan Record</button>
+              {userMpin === '' ? (
+                <div className="bg-amber-50 border border-amber-200/80 p-3 rounded-xl flex gap-2 text-[10px] text-amber-800 font-semibold leading-normal">
+                  <Info className="h-4 w-4 shrink-0 mt-0.5" />
+                  <div>
+                    <p>You must set up a 4-digit MPIN in Settings before adding loans.</p>
+                    <a href="/settings" className="text-blue-600 hover:underline block mt-1.5 font-bold">Go to Settings &rarr;</a>
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <label className="block text-slate-500 mb-1">Enter 4-Digit MPIN to Confirm Creation</label>
+                  <input
+                    type="password"
+                    maxLength={4}
+                    required
+                    placeholder="••••"
+                    value={addLoanMpin}
+                    onChange={e => {
+                      setAddLoanMpin(e.target.value.replace(/\D/g, ''))
+                      setAddLoanMpinError('')
+                    }}
+                    className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 focus:outline-none focus:border-blue-500 text-center font-mono tracking-widest text-sm font-bold"
+                  />
+                  {addLoanMpinError && (
+                    <p className="text-rose-500 text-[10px] font-semibold text-center mt-1">{addLoanMpinError}</p>
+                  )}
+                </div>
+              )}
+
+              {userMpin !== '' && (
+                <button type="submit" disabled={addLoanMpin.length !== 4} className="w-full py-2.5 px-4 rounded-lg bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-bold transition-all shadow-md shadow-blue-500/10 mt-2 cursor-pointer">Register Loan Record</button>
+              )}
             </form>
           </div>
         </div>
@@ -1469,6 +1532,35 @@ export default function LoansClient({
                   Are you sure you want to log this EMI payment? This will update the loan outstanding balance and record the payment in your transaction history ledger.
                 </p>
 
+                {userMpin === '' ? (
+                  <div className="bg-amber-50 border border-amber-200/80 p-3 rounded-xl flex gap-2 text-[10px] text-amber-800 font-semibold leading-normal">
+                    <Info className="h-4 w-4 shrink-0 mt-0.5" />
+                    <div>
+                      <p>You must set up a 4-digit MPIN in Settings before logging transactions.</p>
+                      <a href="/settings" className="text-blue-600 hover:underline block mt-1.5 font-bold">Go to Settings &rarr;</a>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-1 mt-2">
+                    <label className="block text-slate-500 text-left mb-1">Enter 4-Digit MPIN to Confirm</label>
+                    <input
+                      type="password"
+                      maxLength={4}
+                      required
+                      placeholder="••••"
+                      value={enteredPin}
+                      onChange={e => {
+                        setEnteredPin(e.target.value.replace(/\D/g, ''))
+                        setPinError('')
+                      }}
+                      className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 focus:outline-none focus:border-blue-500 text-center font-mono tracking-widest text-sm font-bold"
+                    />
+                    {pinError && (
+                      <p className="text-rose-500 text-[10px] font-semibold text-center mt-1">{pinError}</p>
+                    )}
+                  </div>
+                )}
+
                 <div className="flex gap-3 mt-4">
                   <button
                     type="button"
@@ -1477,13 +1569,16 @@ export default function LoansClient({
                   >
                     Cancel
                   </button>
-                  <button
-                    type="button"
-                    onClick={executeMarkPaid}
-                    className="flex-1 py-2 px-4 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-bold transition-all cursor-pointer text-center"
-                  >
-                    Confirm & Log
-                  </button>
+                  {userMpin !== '' && (
+                    <button
+                      type="button"
+                      onClick={executeMarkPaid}
+                      disabled={enteredPin.length !== 4}
+                      className="flex-1 py-2 px-4 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-lg font-bold transition-all cursor-pointer text-center"
+                    >
+                      Confirm & Log
+                    </button>
+                  )}
                 </div>
               </div>
             </div>

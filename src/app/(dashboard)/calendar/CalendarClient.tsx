@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { 
   ChevronLeft, 
@@ -10,7 +10,9 @@ import {
   Clock, 
   Wallet,
   Sparkles,
-  Info
+  Info,
+  Lock,
+  Check
 } from 'lucide-react'
 import { formatCurrency, parseLoanSchedule, getLocalTodayStr, formatDateToLocalYYYYMMDD, isCardPaidForCycle } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
@@ -83,6 +85,21 @@ export default function CalendarClient({
 }: CalendarClientProps) {
   const router = useRouter()
   const supabase = createClient()
+
+  // MPIN States
+  const [userMpin, setUserMpin] = useState<string | null>(null)
+  const [calendarConfirmOpen, setCalendarConfirmOpen] = useState(false)
+  const [calendarSelectedEvent, setCalendarSelectedEvent] = useState<any>(null)
+  const [enteredPin, setEnteredPin] = useState('')
+  const [pinError, setPinError] = useState('')
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (user) {
+        setUserMpin(user.user_metadata?.mpin || '')
+      }
+    })
+  }, [])
   const [payments, setPayments] = useState<Payment[]>(initialPayments)
   const [ccPayments, setCcPayments] = useState<CCPayment[]>(initialCcPayments)
 
@@ -309,6 +326,27 @@ export default function CalendarClient({
     router.refresh()
   }
 
+  const executeCalendarPayment = async () => {
+    if (!calendarSelectedEvent) return
+    const event = calendarSelectedEvent
+
+    if (userMpin) {
+      if (enteredPin !== userMpin) {
+        setPinError('Incorrect 4-digit MPIN. Please try again.')
+        return
+      }
+    }
+
+    if (event.type === 'card') {
+      await handlePayCardFromCalendar(event.raw)
+    } else {
+      await handleMarkPaidFromCalendar(event.raw)
+    }
+
+    setCalendarConfirmOpen(false)
+    setCalendarSelectedEvent(null)
+  }
+
   // Mark Credit Card statement as paid from calendar
   const handlePayCardFromCalendar = async (card: CreditCard) => {
     const paymentAmount = Number(card.minimum_due)
@@ -517,7 +555,12 @@ export default function CalendarClient({
 
                   {event.status !== 'paid' && (
                     <button
-                      onClick={() => event.type === 'card' ? handlePayCardFromCalendar(event.raw) : handleMarkPaidFromCalendar(event.raw)}
+                      onClick={() => {
+                        setCalendarSelectedEvent(event)
+                        setEnteredPin('')
+                        setPinError('')
+                        setCalendarConfirmOpen(true)
+                      }}
                       className="w-full py-2 bg-emerald-600 hover:bg-emerald-500 font-bold rounded-lg text-white transition-all flex items-center justify-center gap-1.5 cursor-pointer"
                     >
                       <CheckCircle className="h-3.5 w-3.5" />
@@ -530,6 +573,84 @@ export default function CalendarClient({
           </div>
         </div>
       )}
+
+      {calendarConfirmOpen && calendarSelectedEvent && (() => {
+        const event = calendarSelectedEvent
+        return (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-card border border-border w-full max-w-sm rounded-2xl p-6 shadow-2xl relative" onClick={(e) => e.stopPropagation()}>
+              <div className="flex justify-between items-center border-b border-border/50 pb-3 mb-4">
+                <h3 className="font-bold text-md text-foreground flex items-center gap-1.5">
+                  <Check className="h-5 w-5 text-emerald-600" />
+                  <span>Confirm Payment Command</span>
+                </h3>
+                <button onClick={() => { setCalendarConfirmOpen(false); setCalendarSelectedEvent(null); }} className="text-muted-foreground hover:text-foreground text-sm font-semibold p-1 cursor-pointer">Close</button>
+              </div>
+
+              <div className="space-y-4 text-xs font-semibold text-slate-400">
+                <div className="bg-emerald-950/20 border border-emerald-900/30 p-3.5 rounded-xl text-center space-y-1">
+                  <span className="text-[10px] text-emerald-400 uppercase block tracking-wider font-bold">{event.type === 'card' ? 'Minimum Due' : 'EMI Amount'}</span>
+                  <span className="text-xl font-black text-emerald-400 block">{formatCurrency(event.emi)}</span>
+                  <span className="text-[9px] text-muted-foreground block font-normal">{event.name} ({event.lender})</span>
+                </div>
+
+                <p className="text-muted-foreground font-normal leading-normal text-center text-[11px]">
+                  Confirming this transaction will update the {event.type === 'card' ? 'card utilization' : 'loan balance'} and log this payment in your ledgers.
+                </p>
+
+                {userMpin === '' ? (
+                  <div className="bg-amber-950/20 border border-amber-900/30 p-3 rounded-xl flex gap-2 text-[10px] text-amber-400 font-semibold leading-normal">
+                    <Info className="h-4 w-4 shrink-0 mt-0.5" />
+                    <div>
+                      <p>You must set up a 4-digit MPIN in Settings before logging transactions.</p>
+                      <a href="/settings" className="text-blue-400 hover:underline block mt-1.5 font-bold">Go to Settings &rarr;</a>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-1.5 mt-2">
+                    <label className="block text-muted-foreground text-left mb-1">Enter 4-Digit MPIN to Confirm</label>
+                    <input
+                      type="password"
+                      maxLength={4}
+                      required
+                      placeholder="••••"
+                      value={enteredPin}
+                      onChange={e => {
+                        setEnteredPin(e.target.value.replace(/\D/g, ''))
+                        setPinError('')
+                      }}
+                      className="w-full p-2 bg-secondary/50 border border-border rounded-lg text-foreground focus:outline-none focus:border-primary text-center font-mono tracking-widest text-sm font-bold"
+                    />
+                    {pinError && (
+                      <p className="text-rose-500 text-[10px] font-semibold text-center mt-1">{pinError}</p>
+                    )}
+                  </div>
+                )}
+
+                <div className="flex gap-3 mt-4">
+                  <button
+                    type="button"
+                    onClick={() => { setCalendarConfirmOpen(false); setCalendarSelectedEvent(null); }}
+                    className="flex-1 py-2 px-4 border border-border rounded-lg text-muted-foreground hover:bg-secondary/50 font-bold transition-all cursor-pointer text-center"
+                  >
+                    Cancel
+                  </button>
+                  {userMpin !== '' && (
+                    <button
+                      type="button"
+                      onClick={executeCalendarPayment}
+                      disabled={enteredPin.length !== 4}
+                      className="flex-1 py-2 px-4 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-lg font-bold transition-all cursor-pointer text-center"
+                    >
+                      Confirm & Log
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
 
     </div>
   )

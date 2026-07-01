@@ -10,7 +10,9 @@ import {
   CheckCircle2, 
   Sparkles,
   Info,
-  Clock
+  Clock,
+  Lock,
+  Shield
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import confetti from 'canvas-confetti'
@@ -19,18 +21,107 @@ interface SettingsClientProps {
   userId: string
   userEmail: string
   profileName: string
+  initialMpin: string
 }
 
 export default function SettingsClient({
   userId,
   userEmail,
-  profileName
+  profileName,
+  initialMpin
 }: SettingsClientProps) {
   const router = useRouter()
   const supabase = createClient()
 
   // Profile Form States
   const [name, setName] = useState(profileName)
+  
+  // MPIN States
+  const [currentMpin, setCurrentMpin] = useState(initialMpin)
+  const [mpinInput, setMpinInput] = useState('')
+  const [oldMpinInput, setOldMpinInput] = useState('')
+  const [mpinLoading, setMpinLoading] = useState(false)
+  const [mpinMsg, setMpinMsg] = useState<{ text: string; type: 'success' | 'error' } | null>(null)
+
+  // Forgot MPIN States
+  const [showForgotMpin, setShowForgotMpin] = useState(false)
+  const [forgotPassword, setForgotPassword] = useState('')
+  const [forgotNewMpin, setForgotNewMpin] = useState('')
+  const [forgotLoading, setForgotLoading] = useState(false)
+  const [forgotMsg, setForgotMsg] = useState<{ text: string; type: 'success' | 'error' } | null>(null)
+
+  const handleSaveMpin = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (mpinInput.length !== 4 || !/^\d+$/.test(mpinInput)) {
+      setMpinMsg({ text: 'MPIN must be exactly 4 digits.', type: 'error' })
+      return
+    }
+    setMpinLoading(true)
+    setMpinMsg(null)
+
+    // If change PIN mode (not first time), verify old pin
+    if (currentMpin) {
+      if (oldMpinInput !== currentMpin) {
+        setMpinMsg({ text: 'Incorrect old MPIN.', type: 'error' })
+        setMpinLoading(false)
+        return
+      }
+    }
+
+    const { error } = await supabase.auth.updateUser({
+      data: { mpin: mpinInput }
+    })
+
+    if (error) {
+      setMpinMsg({ text: 'Failed to update MPIN: ' + error.message, type: 'error' })
+    } else {
+      setMpinMsg({ text: currentMpin ? 'MPIN successfully changed!' : 'MPIN successfully set up!', type: 'success' })
+      setCurrentMpin(mpinInput)
+      setMpinInput('')
+      setOldMpinInput('')
+      confetti({ particleCount: 40, spread: 30 })
+    }
+    setMpinLoading(false)
+  }
+
+  const handleForgotMpin = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (forgotNewMpin.length !== 4 || !/^\d+$/.test(forgotNewMpin)) {
+      setForgotMsg({ text: 'New MPIN must be exactly 4 digits.', type: 'error' })
+      return
+    }
+    setForgotLoading(true)
+    setForgotMsg(null)
+
+    // Verify password by logging in again
+    const { error: authError } = await supabase.auth.signInWithPassword({
+      email: userEmail,
+      password: forgotPassword
+    })
+
+    if (authError) {
+      setForgotMsg({ text: 'Incorrect account password: ' + authError.message, type: 'error' })
+      setForgotLoading(false)
+      return
+    }
+
+    // Password correct, update MPIN
+    const { error: updateError } = await supabase.auth.updateUser({
+      data: { mpin: forgotNewMpin }
+    })
+
+    if (updateError) {
+      setForgotMsg({ text: 'Failed to reset MPIN: ' + updateError.message, type: 'error' })
+    } else {
+      setForgotMsg({ text: 'MPIN successfully reset!', type: 'success' })
+      setCurrentMpin(forgotNewMpin)
+      setForgotPassword('')
+      setForgotNewMpin('')
+      setShowForgotMpin(false)
+      confetti({ particleCount: 50, spread: 45 })
+    }
+    setForgotLoading(false)
+  }
   const [profileLoading, setProfileLoading] = useState(false)
   const [profileMsg, setProfileMsg] = useState<{ text: string; type: 'success' | 'error' } | null>(null)
 
@@ -251,6 +342,138 @@ export default function SettingsClient({
                 {passwordLoading ? <Clock className="h-4 w-4 animate-spin" /> : <span>Update Password</span>}
               </button>
             </form>
+          </div>
+
+          {/* Card: Manage MPIN */}
+          <div className="bg-card border border-border p-5 rounded-2xl space-y-4">
+            <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
+              <Lock className="h-4 w-4 text-primary" />
+              <span>{currentMpin ? 'Change 4-Digit MPIN' : 'Set up 4-Digit MPIN'}</span>
+            </h3>
+
+            <div className="bg-blue-950/15 border border-blue-900/30 p-3 rounded-xl flex gap-2 text-[10px] text-muted-foreground">
+              <Shield className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+              <p>Your 4-digit MPIN secures your transaction commands. It will be required when logging EMI payments or adding new loans and credit cards.</p>
+            </div>
+
+            {mpinMsg && (
+              <div className={`p-3 rounded-xl border text-[11px] font-semibold ${
+                mpinMsg.type === 'success' ? 'bg-emerald-950/20 border-emerald-900/30 text-emerald-400' : 'bg-rose-950/20 border-rose-900/30 text-rose-400'
+              }`}>
+                {mpinMsg.text}
+              </div>
+            )}
+
+            {!showForgotMpin ? (
+              <form onSubmit={handleSaveMpin} className="space-y-3 text-xs">
+                {currentMpin && (
+                  <div className="space-y-1">
+                    <label className="text-muted-foreground font-semibold">Old 4-Digit MPIN</label>
+                    <input
+                      type="password"
+                      maxLength={4}
+                      pattern="\d{4}"
+                      required
+                      placeholder="Enter old 4-digit pin"
+                      value={oldMpinInput}
+                      onChange={e => setOldMpinInput(e.target.value.replace(/\D/g, ''))}
+                      className="w-full p-2.5 bg-secondary/50 border border-border rounded-xl text-foreground focus:outline-none focus:border-primary font-mono font-bold text-center tracking-widest text-sm"
+                    />
+                  </div>
+                )}
+
+                <div className="space-y-1">
+                  <label className="text-muted-foreground font-semibold">
+                    {currentMpin ? 'New 4-Digit MPIN' : 'Enter 4-Digit MPIN'}
+                  </label>
+                  <input
+                    type="password"
+                    maxLength={4}
+                    pattern="\d{4}"
+                    required
+                    placeholder="Enter 4-digit pin"
+                    value={mpinInput}
+                    onChange={e => setMpinInput(e.target.value.replace(/\D/g, ''))}
+                    className="w-full p-2.5 bg-secondary/50 border border-border rounded-xl text-foreground focus:outline-none focus:border-primary font-mono font-bold text-center tracking-widest text-sm"
+                  />
+                </div>
+
+                <div className="flex flex-col gap-2 pt-1">
+                  <button
+                    type="submit"
+                    disabled={mpinLoading}
+                    className="w-full py-2 px-4 rounded-xl bg-primary hover:bg-primary/95 text-white font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                  >
+                    {mpinLoading ? <Clock className="h-4 w-4 animate-spin" /> : <span>{currentMpin ? 'Change MPIN' : 'Save MPIN'}</span>}
+                  </button>
+
+                  {currentMpin && (
+                    <button
+                      type="button"
+                      onClick={() => { setShowForgotMpin(true); setForgotMsg(null); }}
+                      className="text-[10px] text-primary hover:underline font-semibold block text-center mt-1 cursor-pointer"
+                    >
+                      Forgot MPIN? Reset with password
+                    </button>
+                  )}
+                </div>
+              </form>
+            ) : (
+              <form onSubmit={handleForgotMpin} className="space-y-3 text-xs">
+                <h4 className="font-bold text-rose-400 text-[11px] mb-2">Reset MPIN using Account Password</h4>
+                
+                {forgotMsg && (
+                  <div className={`p-3 rounded-xl border text-[11px] font-semibold ${
+                    forgotMsg.type === 'success' ? 'bg-emerald-950/20 border-emerald-900/30 text-emerald-400' : 'bg-rose-950/20 border-rose-900/30 text-rose-400'
+                  }`}>
+                    {forgotMsg.text}
+                  </div>
+                )}
+
+                <div className="space-y-1">
+                  <label className="text-muted-foreground font-semibold">Account Login Password</label>
+                  <input
+                    type="password"
+                    required
+                    placeholder="Enter your account password"
+                    value={forgotPassword}
+                    onChange={e => setForgotPassword(e.target.value)}
+                    className="w-full p-2.5 bg-secondary/50 border border-border rounded-xl text-foreground focus:outline-none focus:border-primary font-bold"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-muted-foreground font-semibold">New 4-Digit MPIN</label>
+                  <input
+                    type="password"
+                    maxLength={4}
+                    pattern="\d{4}"
+                    required
+                    placeholder="Enter new 4-digit pin"
+                    value={forgotNewMpin}
+                    onChange={e => setForgotNewMpin(e.target.value.replace(/\D/g, ''))}
+                    className="w-full p-2.5 bg-secondary/50 border border-border rounded-xl text-foreground focus:outline-none focus:border-primary font-mono font-bold text-center tracking-widest text-sm"
+                  />
+                </div>
+
+                <div className="flex gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setShowForgotMpin(false)}
+                    className="flex-1 py-2 px-4 border border-border rounded-xl text-muted-foreground hover:bg-secondary/50 font-bold transition-all cursor-pointer text-center"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={forgotLoading}
+                    className="flex-1 py-2 px-4 rounded-xl bg-primary hover:bg-primary/95 text-white font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                  >
+                    {forgotLoading ? <Clock className="h-4 w-4 animate-spin" /> : <span>Reset MPIN</span>}
+                  </button>
+                </div>
+              </form>
+            )}
           </div>
 
         </div>
